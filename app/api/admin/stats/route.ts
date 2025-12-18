@@ -12,7 +12,8 @@ export async function GET(request: NextRequest) {
   }
 
   const { searchParams } = new URL(request.url);
-  const days = parseInt(searchParams.get("days") || "7");
+  const daysParam = Number(searchParams.get("days"));
+  const days = Number.isFinite(daysParam) && daysParam > 0 ? daysParam : 7;
 
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
@@ -30,6 +31,17 @@ export async function GET(request: NextRequest) {
     })
     .from(requestLogs)
     .where(gte(requestLogs.createdAt, startDate));
+
+  const summaryData =
+    summary ?? {
+      totalRequests: 0,
+      successRequests: 0,
+      errorRequests: 0,
+      totalInputTokens: 0,
+      totalOutputTokens: 0,
+      totalCost: 0,
+      avgLatency: 0,
+    };
 
   // Get daily breakdown
   const dailyBreakdown = await db
@@ -73,16 +85,16 @@ export async function GET(request: NextRequest) {
 
   return Response.json({
     summary: {
-      totalRequests: summary.totalRequests || 0,
-      successRequests: summary.successRequests || 0,
-      errorRequests: summary.errorRequests || 0,
-      successRate: summary.totalRequests
-        ? ((summary.successRequests || 0) / summary.totalRequests) * 100
+      totalRequests: summaryData.totalRequests || 0,
+      successRequests: summaryData.successRequests || 0,
+      errorRequests: summaryData.errorRequests || 0,
+      successRate: summaryData.totalRequests
+        ? ((summaryData.successRequests || 0) / summaryData.totalRequests) * 100
         : 0,
-      totalInputTokens: summary.totalInputTokens || 0,
-      totalOutputTokens: summary.totalOutputTokens || 0,
-      totalCost: summary.totalCost || 0,
-      avgLatency: Math.round(summary.avgLatency || 0),
+      totalInputTokens: summaryData.totalInputTokens || 0,
+      totalOutputTokens: summaryData.totalOutputTokens || 0,
+      totalCost: summaryData.totalCost || 0,
+      avgLatency: Math.round(summaryData.avgLatency || 0),
     },
     dailyBreakdown,
     topModels,
