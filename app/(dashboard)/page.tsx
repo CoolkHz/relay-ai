@@ -70,6 +70,7 @@ export default function DashboardPage() {
   }));
   const trendSeries = trendMetric === "requests" ? requestsSeries : successSeries;
   const trendColor = trendMetric === "requests" ? "primary" : "success";
+  const chipColors = ["primary", "secondary", "success", "warning", "danger"] as const;
 
   return (
     <div className="space-y-6">
@@ -315,7 +316,7 @@ export default function DashboardPage() {
                     <TableRow key={model.model || idx}>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Chip size="sm" color={["primary", "secondary", "success", "warning", "danger"][idx % 5]} variant="flat">
+                          <Chip size="sm" color={chipColors[idx % chipColors.length]} variant="flat">
                             {idx + 1}
                           </Chip>
                           <span className="font-medium text-foreground">{model.model || "未知"}</span>
