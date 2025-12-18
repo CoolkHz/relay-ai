@@ -26,7 +26,7 @@ export type SidebarNavProps = Omit<ListboxProps<SidebarItem>, "children"> & {
   hideEndContent?: boolean;
   iconClassName?: string;
   defaultSelectedKey: string;
-  onSelect?: (key: string) => void;
+  onSelectKey?: (key: string) => void;
 };
 
 const SidebarNav = React.forwardRef<HTMLElement, SidebarNavProps>(
@@ -35,7 +35,7 @@ const SidebarNav = React.forwardRef<HTMLElement, SidebarNavProps>(
       items,
       isCompact,
       defaultSelectedKey,
-      onSelect,
+      onSelectKey,
       hideEndContent,
       itemClasses: itemClassesProp = {},
       iconClassName,
@@ -88,7 +88,7 @@ const SidebarNav = React.forwardRef<HTMLElement, SidebarNavProps>(
         onSelectionChange={(keys) => {
           const key = Array.from(keys)[0];
           setSelected(key as React.Key);
-          onSelect?.(key as string);
+          onSelectKey?.(key as string);
         }}
         {...props}
       >

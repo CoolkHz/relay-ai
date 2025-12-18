@@ -3,8 +3,7 @@
 
 import {Icon} from "@iconify/react";
 import React, {useCallback, useState} from "react";
-import {Badge, Button, cn, Form, Image, Tooltip} from "@heroui/react";
-import {VisuallyHidden} from "@react-aria/visually-hidden";
+import {Badge, Button, VisuallyHidden, cn, Form, Image, Tooltip} from "@heroui/react";
 
 
 import PromptInput from "./prompt-input";
@@ -177,7 +176,7 @@ export function PromptInputFullLineComponent({prompt, setPrompt}: PromptInputPro
         minRows={2}
         name="content"
         radius="lg"
-        spellCheck={false}
+        spellCheck="false"
         value={prompt}
         variant="flat"
         onKeyDown={handleKeyDown}

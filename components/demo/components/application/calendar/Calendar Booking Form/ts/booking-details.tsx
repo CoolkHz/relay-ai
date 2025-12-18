@@ -11,7 +11,6 @@ import {
 } from "@heroui/react";
 import {Icon} from "@iconify/react";
 import {useMemo} from "react";
-import {format} from "date-fns";
 
 
 import {DurationEnum, durations, type TimeSlot, timeZoneOptions} from "./calendar";
@@ -41,8 +40,12 @@ export default function BookingDetails({
     if (selectedDate) {
       const date = new Date(selectedDate.toString());
 
-
-      return format(date, "EEEE, MMMM d, yyyy");
+      return new Intl.DateTimeFormat("en-US", {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      }).format(date);
     }
 
 
