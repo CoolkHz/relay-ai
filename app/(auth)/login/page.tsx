@@ -31,7 +31,7 @@ export default function LoginPage() {
         return;
       }
 
-      router.push("/");
+      await router.push("/");
       router.refresh();
     } catch {
       setError("网络错误");
@@ -74,8 +74,11 @@ export default function LoginPage() {
                 onValueChange={setUsername}
                 isRequired
                 variant="bordered"
+                fullWidth
+                autoComplete="username"
+                size="lg"
               />
-              
+
               <Input
                 label="密码"
                 placeholder="请输入密码"
@@ -84,6 +87,9 @@ export default function LoginPage() {
                 onValueChange={setPassword}
                 isRequired
                 variant="bordered"
+                fullWidth
+                autoComplete="current-password"
+                size="lg"
               />
 
               <Button

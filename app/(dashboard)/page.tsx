@@ -33,7 +33,7 @@ import { Icon } from "@iconify/react";
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export default function DashboardPage() {
-  const { data, isLoading } = useSWR("/api/admin/stats?days=7", fetcher);
+  const { data, error, isLoading } = useSWR("/api/admin/stats?days=7", fetcher);
 
   if (isLoading) {
     return (
@@ -43,19 +43,40 @@ export default function DashboardPage() {
     );
   }
 
+  if (error || data?.error) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <Card className="max-w-md border border-danger-100 bg-danger-50/60 text-danger dark:border-danger-300/40 dark:bg-danger-900/30">
+          <CardBody className="flex flex-col items-center gap-2 py-6 text-center">
+            <Icon icon="solar:danger-triangle-linear" width={32} />
+            <p className="text-base font-semibold">无法加载统计数据</p>
+            <p className="text-sm text-danger-500 dark:text-danger-200">
+              {(error as Error | undefined)?.message || data?.error || "请稍后重试"}
+            </p>
+          </CardBody>
+        </Card>
+      </div>
+    );
+  }
+
   const stats = data?.summary || {};
-  const successRate = stats.successRate || 0;
-  const dailyBreakdown = data?.dailyBreakdown || [];
+  const successRate = Number(stats.successRate) || 0;
+  const dailyBreakdown = Array.isArray(data?.dailyBreakdown) ? data.dailyBreakdown : [];
   const [trendMetric, setTrendMetric] = useState<"requests" | "success">("requests");
-  const requestsSeries = dailyBreakdown.map((day: { date: string; requests: number }) => ({
+  const requestsSeries = dailyBreakdown.map((day: { date: string; requests?: number }) => ({
     label: day.date,
-    value: day.requests || 0,
+    value: Number(day.requests) || 0,
   }));
   const successSeries = dailyBreakdown.map(
-    (day: { date: string; requests: number; successCount: number }) => ({
-      label: day.date,
-      value: day.requests > 0 ? Math.round((day.successCount / day.requests) * 100) : 0,
-    }),
+    (day: { date: string; requests?: number; successCount?: number }) => {
+      const requests = Number(day.requests) || 0;
+      const successCount = Number(day.successCount) || 0;
+
+      return {
+        label: day.date,
+        value: requests > 0 ? Math.round((successCount / requests) * 100) : 0,
+      };
+    },
   );
   const totalTokens = (stats.totalInputTokens || 0) + (stats.totalOutputTokens || 0);
   const averageTokenDay = dailyBreakdown.length > 0 ? totalTokens / dailyBreakdown.length : totalTokens;
