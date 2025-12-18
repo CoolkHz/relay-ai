@@ -90,7 +90,7 @@ export function Sidebar() {
         <SidebarNav
           items={navItems}
           defaultSelectedKey={getSelectedKey()}
-          onSelect={handleSelect}
+          onSelectKey={handleSelect}
         />
       </ScrollShadow>
 

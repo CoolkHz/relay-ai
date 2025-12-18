@@ -4,7 +4,6 @@
 import {Icon} from "@iconify/react";
 import React, {useCallback, useState} from "react";
 import {Badge, Button, cn, Form, Image, Tooltip} from "@heroui/react";
-import {VisuallyHidden} from "@react-aria/visually-hidden";
 
 
 import PromptInput from "./prompt-input";
@@ -177,7 +176,7 @@ export function PromptInputFullLineComponent({prompt, setPrompt}: PromptInputPro
         minRows={2}
         name="content"
         radius="lg"
-        spellCheck={false}
+        spellCheck="false"
         value={prompt}
         variant="flat"
         onKeyDown={handleKeyDown}
@@ -194,17 +193,16 @@ export function PromptInputFullLineComponent({prompt, setPrompt}: PromptInputPro
             onPress={() => fileInputRef.current?.click()}
           >
             <Icon className="text-default-500" icon="solar:paperclip-outline" width={24} />
-            <VisuallyHidden>
-              <input
-                ref={fileInputRef}
-                multiple
-                accept="image/*"
-                type="file"
-                onChange={handleFileUpload}
-              />
-            </VisuallyHidden>
           </Button>
         </Tooltip>
+        <input
+          ref={fileInputRef}
+          className="sr-only"
+          multiple
+          accept="image/*"
+          type="file"
+          onChange={handleFileUpload}
+        />
         <Button
           isIconOnly
           color={!prompt ? "default" : "primary"}
