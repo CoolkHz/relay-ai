@@ -18,9 +18,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Get all active groups (exposed as models)
-  const activeGroups = await db.query.groups.findMany({
-    where: eq(groups.status, "active"),
-  });
+  const activeGroups = await db.select().from(groups).where(eq(groups.status, "active")).execute();
 
   const models = activeGroups.map((g) => ({
     id: g.name,

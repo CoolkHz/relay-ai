@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { db } from "../db";
 import { groups, groupChannels, channels } from "../db/schema";
 import { kv, CacheKeys, CacheTTL } from "../cache/kv";
@@ -39,36 +39,64 @@ async function getGroupConfig(groupName: string): Promise<GroupConfig | null> {
   const cached = await kv.get<GroupConfig>(CacheKeys.group(groupName));
   if (cached) return cached;
 
-  // Query database
-  const group = await db.query.groups.findFirst({
-    where: eq(groups.name, groupName),
-    with: {
-      groupChannels: {
-        with: { channel: true },
-      },
-    },
-  });
-
+  // 分步查询：先查询group
+  const group = await db.select().from(groups).where(eq(groups.name, groupName)).execute().then(res => res[0]);
+  
   if (!group || group.status !== "active") return null;
-
+  
+  // 查询关联的groupChannels
+  const groupChannelsList = await db
+    .select()
+    .from(groupChannels)
+    .where(eq(groupChannels.groupId, group.id))
+    .execute();
+  
+  if (groupChannelsList.length === 0) {
+    // 没有关联的渠道，返回空配置
+    const config: GroupConfig = {
+      id: group.id,
+      name: group.name,
+      balanceStrategy: group.balanceStrategy,
+      channels: [],
+    };
+    await kv.set(CacheKeys.group(groupName), config, CacheTTL.group);
+    return config;
+  }
+  
+  // 查询所有相关的channels
+  const channelIds = groupChannelsList.map(gc => gc.channelId);
+  const channelsList = await db
+    .select()
+    .from(channels)
+    .where(and(eq(channels.status, "active"), inArray(channels.id, channelIds)))
+    .execute();
+  
+  // 构建channel映射
+  const channelsMap = new Map(channelsList.map(ch => [ch.id, ch]));
+  
+  // 构建配置
   const config: GroupConfig = {
     id: group.id,
     name: group.name,
     balanceStrategy: group.balanceStrategy,
-    channels: group.groupChannels
-      .filter((gc) => gc.channel.status === "active")
-      .map((gc) => ({
-        id: gc.channel.id,
-        name: gc.channel.name,
-        type: gc.channel.type as ChannelType,
-        baseUrl: gc.channel.baseUrl,
-        apiKey: gc.channel.apiKey,
-        modelMapping: gc.modelMapping,
-        weight: gc.weight,
-        priority: gc.priority,
-        timeout: gc.channel.timeout,
-        maxRetries: gc.channel.maxRetries,
-      })),
+    channels: groupChannelsList
+      .map(gc => {
+        const channel = channelsMap.get(gc.channelId);
+        if (!channel) return null;
+        return {
+          id: channel.id,
+          name: channel.name,
+          type: channel.type as ChannelType,
+          baseUrl: channel.baseUrl,
+          apiKey: channel.apiKey,
+          modelMapping: gc.modelMapping,
+          weight: gc.weight,
+          priority: gc.priority,
+          timeout: channel.timeout,
+          maxRetries: channel.maxRetries,
+        };
+      })
+      .filter((ch): ch is ChannelWithMapping => ch !== null),
   };
 
   // Cache the config
