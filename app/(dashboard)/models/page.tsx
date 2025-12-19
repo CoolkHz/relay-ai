@@ -80,9 +80,9 @@ export default function ModelsPage() {
       />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        <Card className="border border-border/60 bg-gradient-to-br from-muted/40 via-background to-card">
+        <Card className="bg-gradient-to-br from-muted/40 via-background to-card">
           <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <Cpu className="h-5 w-5" />
             </div>
             <div>
@@ -91,9 +91,9 @@ export default function ModelsPage() {
             </div>
           </CardContent>
         </Card>
-        <Card className="border border-border/60 bg-gradient-to-br from-emerald-500/10 via-background to-card">
+        <Card className="bg-gradient-to-br from-emerald-500/10 via-background to-card">
           <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-500">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-500">
               <DollarSign className="h-5 w-5" />
             </div>
             <div>
@@ -102,9 +102,9 @@ export default function ModelsPage() {
             </div>
           </CardContent>
         </Card>
-        <Card className="border border-border/60 bg-gradient-to-br from-secondary/20 via-background to-card">
+        <Card className="bg-gradient-to-br from-secondary/20 via-background to-card">
           <CardContent className="flex items-center gap-3 p-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-secondary/20 text-secondary">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary/20 text-secondary">
               <ArrowDownUp className="h-5 w-5" />
             </div>
             <div>

@@ -57,7 +57,7 @@ const SidebarNav = React.forwardRef<HTMLDivElement, SidebarNavProps>(
                 onSelectKey?.(item.key);
               }}
               className={cn(
-                "group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors",
+                "group flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors",
                 isCompact && "h-11 w-11 justify-center p-0",
                 isSelected
                   ? "bg-accent text-foreground shadow-sm"

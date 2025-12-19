@@ -75,7 +75,7 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="flex h-screen w-72 flex-col border-r border-border/60 bg-background p-6">
+    <aside className="flex h-screen w-72 flex-col border-r bg-background p-6">
       {/* Logo */}
       <div className="flex items-center gap-2 px-2">
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-foreground">
@@ -117,7 +117,7 @@ export function Sidebar() {
         </div>
 
         {/* User Section */}
-        <div className="flex items-center gap-3 rounded-xl bg-muted/60 p-3">
+        <div className="flex items-center gap-3 rounded-lg bg-muted/50 p-3">
           <Avatar className="h-9 w-9 bg-primary text-primary-foreground">
             <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
               {user?.username?.charAt(0).toUpperCase()}

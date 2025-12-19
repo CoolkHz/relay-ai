@@ -35,7 +35,7 @@ export default function LoginPage() {
         return;
       }
 
-      await router.push("/");
+      router.push("/");
       router.refresh();
     } catch {
       setError("网络错误");
@@ -64,7 +64,7 @@ export default function LoginPage() {
           <CardContent>
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               {error && (
-                <div className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                <div className="flex items-center gap-2 rounded-md border border-destructive/50 bg-destructive/10 p-3 text-sm text-destructive">
                   <Icon icon="solar:danger-circle-linear" width={16} />
                   {error}
                 </div>

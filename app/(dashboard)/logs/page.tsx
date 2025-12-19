@@ -38,7 +38,6 @@ interface Log {
 }
 
 const statusOptions = [
-  { key: "", label: "全部状态" },
   { key: "success", label: "成功" },
   { key: "error", label: "错误" },
 ];
