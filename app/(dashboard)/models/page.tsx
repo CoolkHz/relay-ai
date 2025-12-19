@@ -81,7 +81,7 @@ export default function ModelsPage() {
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <Card className="bg-gradient-to-br from-muted/40 via-background to-card">
-          <CardContent className="flex items-center gap-3 p-4">
+          <CardContent className="flex items-center gap-3 p-6">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
               <Cpu className="h-5 w-5" />
             </div>
@@ -92,7 +92,7 @@ export default function ModelsPage() {
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-emerald-500/10 via-background to-card">
-          <CardContent className="flex items-center gap-3 p-4">
+          <CardContent className="flex items-center gap-3 p-6">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-500">
               <DollarSign className="h-5 w-5" />
             </div>
@@ -103,7 +103,7 @@ export default function ModelsPage() {
           </CardContent>
         </Card>
         <Card className="bg-gradient-to-br from-secondary/20 via-background to-card">
-          <CardContent className="flex items-center gap-3 p-4">
+          <CardContent className="flex items-center gap-3 p-6">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-secondary/20 text-secondary">
               <ArrowDownUp className="h-5 w-5" />
             </div>
@@ -116,7 +116,7 @@ export default function ModelsPage() {
       </div>
 
       <Card>
-        <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative w-full sm:max-w-xs">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input

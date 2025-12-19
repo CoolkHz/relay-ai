@@ -74,7 +74,7 @@ export default function LogsPage() {
       />
 
       <Card>
-        <CardContent className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_auto]">
+        <CardContent className="grid gap-4 p-6 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_auto]">
           <FormField label="用户 ID" htmlFor="log-user-id">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

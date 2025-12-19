@@ -2,7 +2,6 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { channels } from "@/lib/db/schema";
 import { requireAdmin } from "@/lib/auth/session";
-import { eq } from "drizzle-orm";
 
 export async function GET() {
   try {
