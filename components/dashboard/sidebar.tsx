@@ -1,18 +1,17 @@
 "use client";
 
+// Usage: <Sidebar /> renders main navigation and user actions.
 import { usePathname, useRouter } from "next/navigation";
 import { useTheme } from "next-themes";
-import {
-  Avatar,
-  Button,
-  ScrollShadow,
-  Tooltip,
-} from "@heroui/react";
 import { Icon } from "@iconify/react";
 
 import { useAuth } from "@/lib/hooks/use-auth";
 import SidebarNav from "./sidebar-nav";
 import type { SidebarItem } from "./sidebar-nav";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const navItems: SidebarItem[] = [
   {
@@ -76,7 +75,7 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="flex h-screen w-72 flex-col border-r-small border-divider bg-background p-6">
+    <aside className="flex h-screen w-72 flex-col border-r border-border/60 bg-background p-6">
       {/* Logo */}
       <div className="flex items-center gap-2 px-2">
         <div className="flex h-8 w-8 items-center justify-center rounded-full bg-foreground">
@@ -86,57 +85,62 @@ export function Sidebar() {
       </div>
 
       {/* Navigation - 使用 py-[10vh] 让列表向下偏移 */}
-      <ScrollShadow className="h-full max-h-full py-[10vh]">
+      <ScrollArea className="h-full py-[10vh]">
         <SidebarNav
           items={navItems}
           defaultSelectedKey={getSelectedKey()}
           onSelectKey={handleSelect}
         />
-      </ScrollShadow>
+      </ScrollArea>
 
       {/* Bottom Section */}
       <div className="mt-auto space-y-3">
         {/* Theme Toggle */}
         <div className="flex items-center justify-between px-3">
-          <span className="text-small text-default-500">主题</span>
-          <Tooltip content={theme === "dark" ? "浅色模式" : "深色模式"}>
-            <Button
-              isIconOnly
-              size="sm"
-              variant="flat"
-              onPress={toggleTheme}
-            >
-              <Icon 
-                icon={theme === "dark" ? "solar:sun-linear" : "solar:moon-linear"} 
-                width={18} 
-              />
-            </Button>
+          <span className="text-sm text-muted-foreground">主题</span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={toggleTheme}
+                aria-label={theme === "dark" ? "切换到浅色模式" : "切换到深色模式"}
+              >
+                <Icon
+                  icon={theme === "dark" ? "solar:sun-linear" : "solar:moon-linear"}
+                  width={18}
+                />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>{theme === "dark" ? "浅色模式" : "深色模式"}</TooltipContent>
           </Tooltip>
         </div>
 
         {/* User Section */}
-        <div className="flex items-center gap-3 rounded-large bg-content2 p-3">
-          <Avatar
-            name={user?.username?.charAt(0).toUpperCase()}
-            size="sm"
-            classNames={{
-              base: "bg-primary",
-              name: "text-primary-foreground font-semibold text-xs",
-            }}
-          />
+        <div className="flex items-center gap-3 rounded-xl bg-muted/60 p-3">
+          <Avatar className="h-9 w-9 bg-primary text-primary-foreground">
+            <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
+              {user?.username?.charAt(0).toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
           <div className="flex-1 min-w-0">
-            <p className="text-small font-medium truncate">{user?.username}</p>
-            <p className="text-tiny text-default-400 capitalize">{user?.role === "admin" ? "管理员" : "用户"}</p>
+            <p className="text-sm font-medium truncate">{user?.username}</p>
+            <p className="text-xs text-muted-foreground capitalize">
+              {user?.role === "admin" ? "管理员" : "用户"}
+            </p>
           </div>
-          <Tooltip content="退出登录">
-            <Button
-              isIconOnly
-              size="sm"
-              variant="light"
-              onPress={logout}
-            >
-              <Icon icon="solar:logout-2-linear" width={18} />
-            </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={logout}
+                aria-label="退出登录"
+              >
+                <Icon icon="solar:logout-2-linear" width={18} />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>退出登录</TooltipContent>
           </Tooltip>
         </div>
       </div>

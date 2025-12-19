@@ -1,17 +1,15 @@
 "use client";
 
-import { HeroUIProvider } from "@heroui/react";
+// Usage: wrap layout to enable themes and tooltips.
 import { ThemeProvider as NextThemesProvider } from "next-themes";
-import { useRouter } from "next/navigation";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
-
   return (
     <NextThemesProvider attribute="class" defaultTheme="light">
-      <HeroUIProvider navigate={router.push}>
+      <TooltipProvider delayDuration={200}>
         {children}
-      </HeroUIProvider>
+      </TooltipProvider>
     </NextThemesProvider>
   );
 }

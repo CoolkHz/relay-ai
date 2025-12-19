@@ -1,27 +1,22 @@
 "use client";
 
+// Usage: request logs with filters and responsive table.
 import { useState } from "react";
 import useSWR from "swr";
-import {
-  Card,
-  CardBody,
-  CardHeader,
-  Table,
-  TableHeader,
-  TableColumn,
-  TableBody,
-  TableRow,
-  TableCell,
-  Chip,
-  Button,
-  Input,
-  Select,
-  SelectItem,
-  Pagination,
-  Spinner,
-  Tooltip,
-} from "@heroui/react";
-import { Search, FileText, RefreshCw, Clock, Cpu, DollarSign, Zap } from "lucide-react";
+import { Clock, Cpu, DollarSign, FileText, RefreshCw, Search, Zap } from "lucide-react";
+
+import { FormField } from "@/components/dashboard/form-field";
+import { PageHeader } from "@/components/dashboard/page-header";
+import { ResponsiveTable } from "@/components/dashboard/responsive-table";
+import { SectionHeader } from "@/components/dashboard/section-header";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Pagination } from "@/components/ui/pagination";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -60,210 +55,269 @@ export default function LogsPage() {
   const { data, isLoading, mutate } = useSWR(`/api/admin/logs?${params}`, fetcher);
 
   const totalPages = Math.ceil((data?.pagination?.total || 0) / 50);
+  const logs = Array.isArray(data?.data) ? (data.data as Log[]) : [];
 
   // Calculate stats
-  const successCount = data?.data?.filter((l: Log) => l.status === "success").length || 0;
-  const errorCount = data?.data?.filter((l: Log) => l.status === "error").length || 0;
+  const successCount = logs.filter((log: Log) => log.status === "success").length || 0;
+  const errorCount = logs.filter((log: Log) => log.status === "error").length || 0;
 
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">请求日志</h1>
-          <p className="text-default-500 text-sm mt-0.5">监控 API 请求和响应</p>
-        </div>
-        <Button 
-          variant="flat" 
-          startContent={<RefreshCw size={16} />} 
-          onPress={() => mutate()}
-        >
-          刷新
-        </Button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="请求日志"
+        description="监控 API 请求和响应"
+        actions={
+          <Button variant="secondary" className="gap-2" onClick={() => mutate()}>
+            <RefreshCw className="h-4 w-4" />
+            刷新
+          </Button>
+        }
+      />
 
-      {/* Filters */}
-      <Card className="shadow-sm">
-        <CardBody className="p-3">
-          <div className="flex gap-4 flex-wrap items-end">
+      <Card>
+        <CardContent className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_auto]">
+          <FormField label="用户 ID" htmlFor="log-user-id">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                id="log-user-id"
+                value={filters.userId}
+                onChange={(event) => {
+                  setFilters({ ...filters, userId: event.target.value });
+                  setPage(1);
+                }}
+                placeholder="按用户筛选"
+                className="pl-9"
+              />
+            </div>
+          </FormField>
+          <FormField label="渠道 ID" htmlFor="log-channel-id">
             <Input
-              label="用户 ID"
-              placeholder="按用户筛选"
-              value={filters.userId}
-              onValueChange={(v) => { setFilters({ ...filters, userId: v }); setPage(1); }}
-              className="w-40"
-              size="sm"
-              variant="bordered"
-              startContent={<Search size={14} className="text-default-400" />}
-            />
-            <Input
-              label="渠道 ID"
-              placeholder="按渠道筛选"
+              id="log-channel-id"
               value={filters.channelId}
-              onValueChange={(v) => { setFilters({ ...filters, channelId: v }); setPage(1); }}
-              className="w-40"
-              size="sm"
-              variant="bordered"
-            />
-            <Select
-              label="状态"
-              placeholder="全部状态"
-              selectedKeys={filters.status ? [filters.status] : []}
-              onSelectionChange={(keys) => {
-                const selected = Array.from(keys)[0] as string || "";
-                setFilters({ ...filters, status: selected });
+              onChange={(event) => {
+                setFilters({ ...filters, channelId: event.target.value });
                 setPage(1);
               }}
-              className="w-40"
-              size="sm"
-              variant="bordered"
+              placeholder="按渠道筛选"
+            />
+          </FormField>
+          <FormField label="状态" htmlFor="log-status">
+            <Select
+              value={filters.status}
+              onValueChange={(value) => {
+                setFilters({ ...filters, status: value });
+                setPage(1);
+              }}
             >
-              {statusOptions.map((opt) => (
-                <SelectItem key={opt.key}>{opt.label}</SelectItem>
-              ))}
+              <SelectTrigger id="log-status">
+                <SelectValue placeholder="全部状态" />
+              </SelectTrigger>
+              <SelectContent>
+                {statusOptions.map((option) => (
+                  <SelectItem key={option.key} value={option.key}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
             </Select>
-            <div className="flex-1" />
-            <div className="flex items-center gap-4 text-small">
-              <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-success" />
-                <span className="text-default-500">{successCount} 成功</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="h-2 w-2 rounded-full bg-danger" />
-                <span className="text-default-500">{errorCount} 错误</span>
-              </div>
-            </div>
+          </FormField>
+          <div className="flex flex-wrap items-end gap-2 text-xs">
+            <Badge variant="success" className="gap-2">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              {successCount} 成功
+            </Badge>
+            <Badge variant="destructive" className="gap-2">
+              <span className="h-2 w-2 rounded-full bg-destructive" />
+              {errorCount} 错误
+            </Badge>
           </div>
-        </CardBody>
+        </CardContent>
       </Card>
 
-      {/* Table */}
-      <Card className="shadow-sm">
-        <CardHeader className="px-4 py-3 border-b border-divider/60">
-          <div className="flex items-center gap-2">
-            <FileText size={16} className="text-primary" />
-            <span className="font-semibold">请求历史</span>
-            <Chip size="sm" variant="flat">共 {data?.pagination?.total || 0} 条</Chip>
-          </div>
+      <Card>
+        <CardHeader className="pb-4">
+          <SectionHeader
+            title="请求历史"
+            description="近实时调用明细与状态"
+            icon={<FileText className="h-4 w-4" />}
+            count={data?.pagination?.total || 0}
+          />
         </CardHeader>
-        <CardBody className="p-0">
+        <CardContent className="pt-0">
           {isLoading ? (
-            <div className="flex justify-center items-center py-12">
-              <Spinner size="lg" color="primary" />
+            <div className="flex items-center justify-center py-12">
+              <Spinner size="lg" />
             </div>
           ) : (
-            <Table aria-label="请求日志列表" removeWrapper>
-              <TableHeader>
-                <TableColumn>时间</TableColumn>
-                <TableColumn>模型</TableColumn>
-                <TableColumn align="end">Token</TableColumn>
-                <TableColumn align="end">费用</TableColumn>
-                <TableColumn align="end">延迟</TableColumn>
-                <TableColumn>状态</TableColumn>
-                <TableColumn>用户 / 渠道</TableColumn>
-              </TableHeader>
-              <TableBody emptyContent="暂无日志">
-                {(data?.data || []).map((log: Log) => (
-                  <TableRow key={log.id} className="hover:bg-default-50 transition-colors">
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Clock size={14} className="text-default-400" />
-                        <span className="text-small text-default-600">
-                          {new Date(log.createdAt).toLocaleString()}
-                        </span>
+            <ResponsiveTable
+              data={logs}
+              getRowId={(log) => log.id}
+              emptyState="暂无日志"
+              tableLabel="请求日志列表"
+              columns={[
+                {
+                  key: "time",
+                  header: "时间",
+                  cell: (log) => (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Clock className="h-4 w-4" />
+                      <span>{new Date(log.createdAt).toLocaleString()}</span>
+                    </div>
+                  ),
+                },
+                {
+                  key: "model",
+                  header: "模型",
+                  cell: (log) => (
+                    <div className="flex items-center gap-2">
+                      <Cpu className="h-4 w-4 text-primary" />
+                      <div>
+                        <p className="text-sm font-semibold font-mono">{log.requestModel}</p>
+                        {log.actualModel !== log.requestModel ? (
+                          <p className="text-xs text-muted-foreground">→ {log.actualModel}</p>
+                        ) : null}
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Cpu size={14} className="text-primary" />
-                        <div>
-                          <p className="font-medium font-mono text-small">{log.requestModel}</p>
-                          {log.actualModel !== log.requestModel && (
-                            <p className="text-tiny text-default-400">→ {log.actualModel}</p>
-                          )}
-                        </div>
+                    </div>
+                  ),
+                },
+                {
+                  key: "tokens",
+                  header: "Token",
+                  align: "right",
+                  cell: (log) => (
+                    <div className="text-right">
+                      <div className="flex items-center justify-end gap-1 text-sm font-medium">
+                        <Zap className="h-3.5 w-3.5 text-amber-500" />
+                        {log.totalTokens?.toLocaleString()}
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Zap size={12} className="text-warning" />
-                          <span className="font-medium">{log.totalTokens?.toLocaleString()}</span>
-                        </div>
-                        <p className="text-tiny text-default-400">
-                          {log.inputTokens?.toLocaleString()} in / {log.outputTokens?.toLocaleString()} out
+                      <p className="text-xs text-muted-foreground">
+                        {log.inputTokens?.toLocaleString()} in / {log.outputTokens?.toLocaleString()} out
+                      </p>
+                    </div>
+                  ),
+                },
+                {
+                  key: "cost",
+                  header: "费用",
+                  align: "right",
+                  cell: (log) => (
+                    <div className="flex items-center justify-end gap-1 text-sm font-medium">
+                      <DollarSign className="h-3.5 w-3.5 text-emerald-500" />
+                      {Number(log.cost).toFixed(6)}
+                    </div>
+                  ),
+                },
+                {
+                  key: "latency",
+                  header: "延迟",
+                  align: "right",
+                  cell: (log) => (
+                    <Badge
+                      variant={
+                        log.latency < 1000 ? "success" : log.latency < 3000 ? "warning" : "destructive"
+                      }
+                    >
+                      {log.latency}ms
+                    </Badge>
+                  ),
+                },
+                {
+                  key: "status",
+                  header: "状态",
+                  cell: (log) => (
+                    <div className="space-y-1">
+                      <Badge variant={log.status === "success" ? "success" : "destructive"}>
+                        {log.status}
+                      </Badge>
+                      {log.errorMessage ? (
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="block max-w-[180px] truncate text-xs text-destructive">
+                              {log.errorMessage}
+                            </span>
+                          </TooltipTrigger>
+                          <TooltipContent>{log.errorMessage}</TooltipContent>
+                        </Tooltip>
+                      ) : null}
+                    </div>
+                  ),
+                },
+                {
+                  key: "user",
+                  header: "用户 / 渠道",
+                  cell: (log) => (
+                    <div className="text-sm">
+                      <p>
+                        用户: <span className="font-medium">{log.userId || "-"}</span>
+                      </p>
+                      <p className="text-xs text-muted-foreground">渠道: {log.channelId || "-"}</p>
+                    </div>
+                  ),
+                },
+              ]}
+              renderMobileCard={(log) => (
+                <Card className="border border-border/60">
+                  <CardContent className="space-y-3 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold font-mono">{log.requestModel}</p>
+                        {log.actualModel !== log.requestModel ? (
+                          <p className="text-xs text-muted-foreground">→ {log.actualModel}</p>
+                        ) : null}
+                      </div>
+                      <Badge variant={log.status === "success" ? "success" : "destructive"}>
+                        {log.status}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Clock className="h-4 w-4" />
+                      <span>{new Date(log.createdAt).toLocaleString()}</span>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <div className="rounded-lg bg-muted/60 p-2 text-xs">
+                        <p className="text-muted-foreground">Tokens</p>
+                        <p className="font-medium">{log.totalTokens?.toLocaleString()}</p>
+                      </div>
+                      <div className="rounded-lg bg-muted/60 p-2 text-xs">
+                        <p className="text-muted-foreground">费用</p>
+                        <p className="font-medium">{Number(log.cost).toFixed(6)}</p>
+                      </div>
+                      <div className="rounded-lg bg-muted/60 p-2 text-xs">
+                        <p className="text-muted-foreground">延迟</p>
+                        <p className="font-medium">{log.latency}ms</p>
+                      </div>
+                      <div className="rounded-lg bg-muted/60 p-2 text-xs">
+                        <p className="text-muted-foreground">用户 / 渠道</p>
+                        <p className="font-medium">
+                          {log.userId || "-"} / {log.channelId || "-"}
                         </p>
                       </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <DollarSign size={12} className="text-success" />
-                          <span className="font-medium">{Number(log.cost).toFixed(6)}</span>
-                        </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-right">
-                        <Chip 
-                          size="sm" 
-                          variant="flat"
-                          color={log.latency < 1000 ? "success" : log.latency < 3000 ? "warning" : "danger"}
-                        >
-                          {log.latency}ms
-                        </Chip>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col gap-1">
-                        <Chip
-                          color={log.status === "success" ? "success" : "danger"}
-                          size="sm"
-                          variant="dot"
-                        >
-                          {log.status}
-                        </Chip>
-                        {log.errorMessage && (
-                          <Tooltip content={log.errorMessage}>
-                            <p className="max-w-[150px] truncate text-tiny text-danger cursor-help">
-                              {log.errorMessage}
-                            </p>
-                          </Tooltip>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-small">
-                        <p>用户: <span className="font-medium">{log.userId || "-"}</span></p>
-                        <p className="text-default-400">渠道: {log.channelId || "-"}</p>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                    </div>
+                    {log.errorMessage ? (
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <p className="truncate text-xs text-destructive">{log.errorMessage}</p>
+                        </TooltipTrigger>
+                        <TooltipContent>{log.errorMessage}</TooltipContent>
+                      </Tooltip>
+                    ) : null}
+                  </CardContent>
+                </Card>
+              )}
+            />
           )}
-        </CardBody>
+        </CardContent>
       </Card>
 
-      {/* Pagination */}
-      <div className="flex items-center justify-between">
-        <p className="text-small text-default-500">
-          显示 {((page - 1) * 50) + 1} - {Math.min(page * 50, data?.pagination?.total || 0)} 条，共 {data?.pagination?.total || 0} 条记录
+      <div className="flex flex-col gap-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+        <p>
+          显示 {((page - 1) * 50) + 1} - {Math.min(page * 50, data?.pagination?.total || 0)} 条，共{" "}
+          {data?.pagination?.total || 0} 条记录
         </p>
-        {totalPages > 1 && (
-          <Pagination
-            total={totalPages}
-            page={page}
-            onChange={setPage}
-            showControls
-            color="primary"
-            size="sm"
-            classNames={{
-              cursor: "shadow-md",
-            }}
-          />
-        )}
+        {totalPages > 1 ? (
+          <Pagination total={totalPages} page={page} onChange={setPage} showControls />
+        ) : null}
       </div>
     </div>
   );

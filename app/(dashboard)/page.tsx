@@ -1,43 +1,30 @@
 "use client";
 
+// Usage: main dashboard metrics and charts.
 import { useState } from "react";
 import useSWR from "swr";
 import {
-  Card,
-  CardBody,
-  CardHeader,
-  Chip,
-  Progress,
-  Spinner,
-  Table,
-  TableBody,
-  TableCell,
-  TableColumn,
-  TableHeader,
-  TableRow,
-  Tabs,
-  Tab,
-  cn,
-} from "@heroui/react";
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
+  Bar,
+  BarChart,
   ResponsiveContainer,
-  Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import { Icon } from "@iconify/react";
+import { Activity, CreditCard, DollarSign, Zap } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Spinner } from "@/components/ui/spinner";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
 export default function DashboardPage() {
   const { data, error, isLoading } = useSWR("/api/admin/stats?days=7", fetcher);
+  const [trendMetric, setTrendMetric] = useState<"requests" | "tokens">("requests");
 
   if (isLoading) {
     return (
-      <div className="flex h-full items-center justify-center">
+      <div className="flex h-[50vh] items-center justify-center">
         <Spinner size="lg" />
       </div>
     );
@@ -45,15 +32,14 @@ export default function DashboardPage() {
 
   if (error || data?.error) {
     return (
-      <div className="flex h-full items-center justify-center">
-        <Card className="max-w-md border border-danger-100 bg-danger-50/60 text-danger dark:border-danger-300/40 dark:bg-danger-900/30">
-          <CardBody className="flex flex-col items-center gap-2 py-6 text-center">
-            <Icon icon="solar:danger-triangle-linear" width={32} />
-            <p className="text-base font-semibold">无法加载统计数据</p>
-            <p className="text-sm text-danger-500 dark:text-danger-200">
-              {(error as Error | undefined)?.message || data?.error || "请稍后重试"}
-            </p>
-          </CardBody>
+      <div className="flex h-[50vh] items-center justify-center">
+        <Card className="w-full max-w-md">
+          <CardHeader>
+            <CardTitle className="text-destructive">加载失败</CardTitle>
+            <CardDescription>
+              {(error as Error | undefined)?.message || data?.error || "无法加载统计数据，请稍后重试"}
+            </CardDescription>
+          </CardHeader>
         </Card>
       </div>
     );
@@ -62,408 +48,188 @@ export default function DashboardPage() {
   const stats = data?.summary || {};
   const successRate = Number(stats.successRate) || 0;
   const dailyBreakdown = Array.isArray(data?.dailyBreakdown) ? data.dailyBreakdown : [];
-  const [trendMetric, setTrendMetric] = useState<"requests" | "success">("requests");
-  const requestsSeries = dailyBreakdown.map((day: { date: string; requests?: number }) => ({
-    label: day.date,
-    value: Number(day.requests) || 0,
-  }));
-  const successSeries = dailyBreakdown.map(
-    (day: { date: string; requests?: number; successCount?: number }) => {
-      const requests = Number(day.requests) || 0;
-      const successCount = Number(day.successCount) || 0;
-
-      return {
-        label: day.date,
-        value: requests > 0 ? Math.round((successCount / requests) * 100) : 0,
-      };
-    },
-  );
   const totalTokens = (stats.totalInputTokens || 0) + (stats.totalOutputTokens || 0);
-  const averageTokenDay = dailyBreakdown.length > 0 ? totalTokens / dailyBreakdown.length : totalTokens;
-  const tokenSeries = dailyBreakdown.map((day: { date: string }, idx: number) => ({
-    label: day.date,
-    value: Math.round(averageTokenDay * (1 + (idx % 3) * 0.08)),
+
+  const chartData = dailyBreakdown.map((day: { date: string; requests?: number; successCount?: number }) => ({
+    name: day.date?.slice(5) || "",
+    requests: Number(day.requests) || 0,
+    tokens: Math.round(totalTokens / Math.max(dailyBreakdown.length, 1)),
   }));
-  const averageCost = (stats.totalCost || 0) / Math.max(dailyBreakdown.length, 1);
-  const costSeries = dailyBreakdown.map((day: { date: string }, idx: number) => ({
-    label: day.date,
-    value: Number((averageCost * (1 + (idx % 4) * 0.05)).toFixed(4)),
-  }));
-  const trendSeries = trendMetric === "requests" ? requestsSeries : successSeries;
-  const trendColor = trendMetric === "requests" ? "primary" : "success";
-  const chipColors = ["primary", "secondary", "success", "warning", "danger"] as const;
 
   return (
-    <div className="space-y-6">
-      <Card className="border border-default-100 bg-gradient-to-br from-content2/40 via-background to-content1/80 dark:from-content1/5 dark:via-background dark:to-content1/10">
-        <CardBody className="p-6 sm:p-8">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="space-y-1">
-              <p className="text-xs uppercase tracking-[0.2em] text-default-500">API Control Center</p>
-              <h1 className="text-3xl font-bold sm:text-4xl">仪表盘</h1>
-              <p className="text-sm text-default-500">基于官方 HeroUI 组件的可视化面板，适配明暗主题。</p>
-            </div>
-            <div className="flex items-center gap-3">
-              <Chip color="success" variant="flat" startContent={<Icon icon="solar:shield-check-linear" width={16} />}>
-                成功率 {successRate.toFixed(1)}%
-              </Chip>
-              <Chip color="secondary" variant="flat" startContent={<Icon icon="solar:clock-circle-linear" width={16} />}>
-                平均延迟 {stats.avgLatency || 0}ms
-              </Chip>
-            </div>
-          </div>
-        </CardBody>
-      </Card>
-
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <KpiCard
-          title="总请求数"
-          value={stats.totalRequests?.toLocaleString() || "0"}
-          change={`${successRate.toFixed(1)}% 成功率`}
-          changeType={successRate >= 95 ? "positive" : successRate >= 80 ? "neutral" : "negative"}
-          chartData={requestsSeries}
-          suffix="次"
-          icon="solar:chart-2-linear"
-        />
-        <KpiCard
-          title="总 Token"
-          value={totalTokens.toLocaleString()}
-          change={`输入 ${(stats.totalInputTokens || 0).toLocaleString()} / 输出 ${(stats.totalOutputTokens || 0).toLocaleString()}`}
-          changeType="neutral"
-          chartData={tokenSeries}
-          suffix="tokens"
-          icon="solar:bolt-linear"
-        />
-        <KpiCard
-          title="总费用"
-          value={`$${(stats.totalCost || 0).toFixed(4)}`}
-          change="近 7 天汇总"
-          changeType={stats.totalCost ? "positive" : "neutral"}
-          chartData={costSeries}
-          suffix="USD"
-          icon="solar:dollar-minimalistic-linear"
-        />
-        <KpiCard
-          title="平均延迟"
-          value={`${stats.avgLatency || 0}ms`}
-          change="持续监测响应时间"
-          changeType="neutral"
-          chartData={successSeries}
-          suffix="ms"
-          icon="solar:clock-circle-linear"
-        />
+    <div className="space-y-8">
+      <div>
+        <h2 className="text-3xl font-bold tracking-tight">仪表盘</h2>
+        <p className="text-muted-foreground">API 网关运行状态概览</p>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-3">
-        <Card className="xl:col-span-2 border border-default-100 dark:border-default-50/30">
-          <CardHeader className="flex-col items-start px-6 pt-6 pb-0 gap-1">
-            <div className="flex w-full items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                  <Icon icon="solar:graph-up-linear" width={18} />
-                </div>
-                <div>
-                  <h3 className="text-base font-semibold">趋势对比</h3>
-                  <p className="text-xs text-default-500">请求量与成功率趋势</p>
-                </div>
-              </div>
-              <Tabs
-                aria-label="趋势切换"
-                classNames={{ tabList: "bg-content2/60" }}
-                selectedKey={trendMetric}
-                onSelectionChange={(key) => setTrendMetric(key as "requests" | "success")}
-              >
-                <Tab key="requests" title="请求量" />
-                <Tab key="success" title="成功率" />
-              </Tabs>
-            </div>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">总请求数</CardTitle>
+            <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardBody className="px-6 pb-6 pt-2">
-            {dailyBreakdown.length ? (
-              <ResponsiveContainer height={320} className="[&_.recharts-surface]:outline-hidden">
-                <AreaChart data={trendSeries} margin={{ left: 0, right: 0, top: 10, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorRequests" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--heroui-primary))" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="hsl(var(--heroui-primary))" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="colorSuccess" x1="0" x2="0" y1="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--heroui-success))" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="hsl(var(--heroui-success))" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--heroui-default-300))" className="dark:stroke-default-100" />
-                  <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "var(--heroui-foreground)" }} />
-                  <YAxis tickLine={false} axisLine={false} tick={{ fill: "var(--heroui-foreground)" }} />
-                  <Tooltip contentStyle={{ backgroundColor: "hsl(var(--heroui-content1))", borderRadius: 12 }} />
-                  <Area
-                    type="monotone"
-                    dataKey="value"
-                    stroke={`hsl(var(--heroui-${trendColor}))`}
-                    fill={`url(#color${trendMetric === "requests" ? "Requests" : "Success"})`}
-                    strokeWidth={2.4}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <EmptyState icon="solar:chart-2-linear" label="暂无数据" />
-            )}
-          </CardBody>
+          <CardContent>
+            <div className="text-2xl font-bold">{(stats.totalRequests || 0).toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">
+              成功率 {successRate.toFixed(1)}%
+            </p>
+          </CardContent>
         </Card>
 
-        <Card className="border border-default-100 dark:border-default-50/30">
-          <CardHeader className="flex-col items-start px-6 pt-6 pb-0 gap-1">
-            <div className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-success/10 text-success">
-                <Icon icon="solar:shield-check-linear" width={18} />
-              </div>
-              <div>
-                <h3 className="text-base font-semibold">服务质量</h3>
-                <p className="text-xs text-default-500">动态进度与 SLA 目标</p>
-              </div>
-            </div>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">总 Token</CardTitle>
+            <Zap className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardBody className="px-6 pb-6 pt-4 space-y-5">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm text-default-500">成功率</p>
-                <p className="text-3xl font-semibold text-success">{successRate.toFixed(1)}%</p>
-              </div>
-              <Chip color={successRate >= 95 ? "success" : successRate >= 80 ? "warning" : "danger"} variant="flat">
-                目标 99.9%
-              </Chip>
-            </div>
-            <Progress
-              aria-label="成功率"
-              value={successRate}
-              color={successRate >= 95 ? "success" : successRate >= 80 ? "warning" : "danger"}
-              className="h-2"
-            />
-            <div className="grid grid-cols-2 gap-3 text-xs text-default-500">
-              <div className="space-y-1 rounded-large bg-content2/60 p-3">
-                <p className="text-default-600 font-medium">平均延迟</p>
-                <p className="text-lg font-semibold text-foreground">{stats.avgLatency || 0}ms</p>
-                <p>关注每次调用的响应效率</p>
-              </div>
-              <div className="space-y-1 rounded-large bg-content2/60 p-3">
-                <p className="text-default-600 font-medium">总费用</p>
-                <p className="text-lg font-semibold text-foreground">${(stats.totalCost || 0).toFixed(4)}</p>
-                <p>综合监控成本变化</p>
-              </div>
-            </div>
-          </CardBody>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalTokens.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">
+              输入 {(stats.totalInputTokens || 0).toLocaleString()} / 输出 {(stats.totalOutputTokens || 0).toLocaleString()}
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">总费用</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">${(stats.totalCost || 0).toFixed(4)}</div>
+            <p className="text-xs text-muted-foreground">近 7 天汇总</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">平均延迟</CardTitle>
+            <CreditCard className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.avgLatency || 0}ms</div>
+            <p className="text-xs text-muted-foreground">响应时间</p>
+          </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-3">
-        <Card className="border border-default-100 dark:border-default-50/30 xl:col-span-2">
-          <CardHeader className="flex items-center justify-between px-6 pt-6 pb-0">
-            <div className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-secondary/10 text-secondary">
-                <Icon icon="solar:radar-2-linear" width={18} />
-              </div>
-              <div>
-                <h3 className="text-base font-semibold">每日概览</h3>
-                <p className="text-xs text-default-500">请求与成功率的分布</p>
-              </div>
-            </div>
-            <Chip color="secondary" variant="flat" size="sm">
-              最近 7 天
-            </Chip>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
+        <Card className="col-span-4">
+          <CardHeader>
+            <CardTitle>概览</CardTitle>
+            <CardDescription>近 7 天请求趋势</CardDescription>
           </CardHeader>
-          <CardBody className="px-6 pb-6 pt-4">
-            {dailyBreakdown.length ? (
-              <div className="space-y-3">
-                {dailyBreakdown.map((day: { date: string; requests: number; successCount: number }) => {
-                  const maxReq = Math.max(...dailyBreakdown.map((d: { requests: number }) => d.requests || 1), 1);
-                  const pct = (day.requests / maxReq) * 100;
-                  const successPct = day.requests > 0 ? (day.successCount / day.requests) * 100 : 0;
-                  return (
-                    <div key={day.date} className="space-y-1 rounded-large bg-content2/60 p-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2 text-sm font-medium">
-                          <Icon icon="solar:calendar-linear" width={16} className="text-default-500" />
-                          <span>{day.date}</span>
-                        </div>
-                        <Chip size="sm" color={successPct >= 95 ? "success" : successPct >= 80 ? "warning" : "danger"} variant="flat">
-                          {successPct.toFixed(0)}% 成功
-                        </Chip>
-                      </div>
-                      <div className="flex items-center justify-between text-xs text-default-500">
-                        <span>请求 {day.requests.toLocaleString()}</span>
-                        <span>成功 {day.successCount.toLocaleString()}</span>
-                      </div>
-                      <div className="h-2 overflow-hidden rounded-full bg-default-100 dark:bg-default-50/30">
-                        <div
-                          className="h-full bg-gradient-to-r from-primary via-secondary to-secondary/70"
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <EmptyState icon="solar:chart-2-linear" label="暂无数据" />
-            )}
-          </CardBody>
+          <CardContent className="pl-2">
+            <Tabs value={trendMetric} onValueChange={(v) => setTrendMetric(v as "requests" | "tokens")}>
+              <TabsList>
+                <TabsTrigger value="requests">请求量</TabsTrigger>
+                <TabsTrigger value="tokens">Token 用量</TabsTrigger>
+              </TabsList>
+              <TabsContent value="requests" className="mt-4">
+                {chartData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={350}>
+                    <BarChart data={chartData}>
+                      <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                      <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}`} />
+                      <Bar dataKey="requests" fill="currentColor" radius={[4, 4, 0, 0]} className="fill-primary" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex h-[350px] items-center justify-center text-muted-foreground">
+                    暂无数据
+                  </div>
+                )}
+              </TabsContent>
+              <TabsContent value="tokens" className="mt-4">
+                {chartData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height={350}>
+                    <BarChart data={chartData}>
+                      <XAxis dataKey="name" stroke="#888888" fontSize={12} tickLine={false} axisLine={false} />
+                      <YAxis stroke="#888888" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}`} />
+                      <Bar dataKey="tokens" fill="currentColor" radius={[4, 4, 0, 0]} className="fill-primary" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex h-[350px] items-center justify-center text-muted-foreground">
+                    暂无数据
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          </CardContent>
         </Card>
 
-        <Card className="border border-default-100 dark:border-default-50/30">
-          <CardHeader className="flex items-center justify-between px-6 pt-6 pb-0">
-            <div className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-warning/10 text-warning">
-                <Icon icon="solar:bolt-linear" width={18} />
-              </div>
-              <div>
-                <h3 className="text-base font-semibold">热门模型</h3>
-                <p className="text-xs text-default-500">按请求数排序</p>
-              </div>
-            </div>
-            <Chip color="warning" variant="flat" size="sm">
-              资源分布
-            </Chip>
+        <Card className="col-span-3">
+          <CardHeader>
+            <CardTitle>热门模型</CardTitle>
+            <CardDescription>按请求数排序</CardDescription>
           </CardHeader>
-          <CardBody className="px-6 pb-6 pt-4">
+          <CardContent>
             {data?.topModels?.length ? (
-              <Table removeWrapper aria-label="热门模型列表" classNames={{ th: "text-default-500 text-xs" }}>
+              <Table>
                 <TableHeader>
-                  <TableColumn>模型</TableColumn>
-                  <TableColumn className="text-right">请求数</TableColumn>
-                  <TableColumn className="text-right">Tokens</TableColumn>
+                  <TableRow>
+                    <TableHead>模型</TableHead>
+                    <TableHead className="text-right">请求数</TableHead>
+                    <TableHead className="text-right">Tokens</TableHead>
+                  </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.topModels.map((model: { model: string; requests: number; tokens: number }, idx: number) => (
+                  {data.topModels.slice(0, 5).map((model: { model: string; requests: number; tokens: number }, idx: number) => (
                     <TableRow key={model.model || idx}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Chip size="sm" color={chipColors[idx % chipColors.length]} variant="flat">
-                            {idx + 1}
-                          </Chip>
-                          <span className="font-medium text-foreground">{model.model || "未知"}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-right text-sm text-default-600">{model.requests.toLocaleString()}</TableCell>
-                      <TableCell className="text-right text-sm text-default-600">{model.tokens?.toLocaleString()}</TableCell>
+                      <TableCell className="font-medium">{model.model || "未知"}</TableCell>
+                      <TableCell className="text-right">{model.requests.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">{model.tokens?.toLocaleString() || "-"}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
             ) : (
-              <EmptyState icon="solar:bolt-linear" label="暂无数据" />
+              <div className="flex h-[200px] items-center justify-center text-muted-foreground">
+                暂无数据
+              </div>
             )}
-          </CardBody>
+          </CardContent>
         </Card>
       </div>
-    </div>
-  );
-}
 
-type ChangeType = "positive" | "negative" | "neutral";
-
-function KpiCard({
-  title,
-  value,
-  change,
-  changeType,
-  chartData,
-  suffix,
-  icon,
-}: {
-  title: string;
-  value: string;
-  change: string;
-  changeType: ChangeType;
-  chartData: Array<{ label: string; value: number }>;
-  suffix: string;
-  icon: string;
-}) {
-  return (
-    <Card className="dark:border-default-100 border border-transparent">
-      <section className="flex flex-nowrap justify-between">
-        <div className="flex flex-col justify-between gap-y-2 p-4">
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-content2 text-primary">
-              <Icon height={18} icon={icon} width={18} />
-            </div>
-            <dt className="text-default-600 text-sm font-medium">{title}</dt>
-          </div>
-          <dd className="text-default-700 text-3xl font-semibold text-foreground">{value}</dd>
-          <div
-            className={cn("mt-1 flex items-center gap-x-1 text-xs font-medium", {
-              "text-success": changeType === "positive",
-              "text-warning": changeType === "neutral",
-              "text-danger": changeType === "negative",
-            })}
-          >
-            {changeType === "positive" ? (
-              <Icon height={16} icon="solar:arrow-right-up-linear" width={16} />
-            ) : changeType === "neutral" ? (
-              <Icon height={16} icon="solar:arrow-right-linear" width={16} />
-            ) : (
-              <Icon height={16} icon="solar:arrow-right-down-linear" width={16} />
-            )}
-            <span>{change}</span>
-          </div>
-        </div>
-        <div className="mt-10 min-h-24 w-36 min-w-[140px] shrink-0">
-          {chartData.length ? (
-            <ResponsiveContainer className="[&_.recharts-surface]:outline-hidden" width="100%">
-              <AreaChart accessibilityLayer data={chartData} margin={{ left: 0, right: 0 }}>
-                <defs>
-                  <linearGradient id={`colorMetric${title}`} x1="0" x2="0" y1="0" y2="1">
-                    <stop
-                      offset="5%"
-                      stopColor={
-                        changeType === "positive"
-                          ? "hsl(var(--heroui-success))"
-                          : changeType === "negative"
-                            ? "hsl(var(--heroui-danger))"
-                            : "hsl(var(--heroui-warning))"
-                      }
-                      stopOpacity={0.2}
-                    />
-                    <stop
-                      offset="60%"
-                      stopColor={
-                        changeType === "positive"
-                          ? "hsl(var(--heroui-success))"
-                          : changeType === "negative"
-                            ? "hsl(var(--heroui-danger))"
-                            : "hsl(var(--heroui-warning))"
-                      }
-                      stopOpacity={0}
-                    />
-                  </linearGradient>
-                </defs>
-                <YAxis domain={[Math.min(...chartData.map((d) => d.value)), "auto"]} hide={true} />
-                <Area
-                  dataKey="value"
-                  fill={`url(#colorMetric${title})`}
-                  stroke={
-                    changeType === "positive"
-                      ? "hsl(var(--heroui-success))"
-                      : changeType === "negative"
-                        ? "hsl(var(--heroui-danger))"
-                        : "hsl(var(--heroui-warning))"
-                  }
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+      <Card>
+        <CardHeader>
+          <CardTitle>每日明细</CardTitle>
+          <CardDescription>最近 7 天的请求统计</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {dailyBreakdown.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>日期</TableHead>
+                  <TableHead className="text-right">请求数</TableHead>
+                  <TableHead className="text-right">成功数</TableHead>
+                  <TableHead className="text-right">成功率</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {dailyBreakdown.map((day: { date: string; requests: number; successCount: number }) => {
+                  const rate = day.requests > 0 ? ((day.successCount / day.requests) * 100).toFixed(1) : "0.0";
+                  return (
+                    <TableRow key={day.date}>
+                      <TableCell className="font-medium">{day.date}</TableCell>
+                      <TableCell className="text-right">{day.requests.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">{day.successCount.toLocaleString()}</TableCell>
+                      <TableCell className="text-right">{rate}%</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
           ) : (
-            <div className="flex h-full items-center justify-center text-xs text-default-500">{suffix}</div>
+            <div className="flex h-[200px] items-center justify-center text-muted-foreground">
+              暂无数据
+            </div>
           )}
-        </div>
-      </section>
-    </Card>
-  );
-}
-
-function EmptyState({ icon, label }: { icon: string; label: string }) {
-  return (
-    <div className="flex flex-col items-center justify-center py-8 text-default-400">
-      <Icon icon={icon} width={28} className="mb-2 opacity-60" />
-      <p className="text-sm">{label}</p>
+        </CardContent>
+      </Card>
     </div>
   );
 }

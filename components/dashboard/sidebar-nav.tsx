@@ -1,14 +1,9 @@
 "use client";
 
+// Usage: <SidebarNav items={items} defaultSelectedKey="/" onSelectKey={setKey} />
 import React from "react";
-import {
-  Listbox,
-  ListboxItem,
-  type ListboxProps,
-  type Selection,
-} from "@heroui/react";
 import { Icon } from "@iconify/react";
-import { cn } from "@heroui/react";
+import { cn } from "@/lib/utils/cn";
 
 export type SidebarItem = {
   key: string;
@@ -20,7 +15,7 @@ export type SidebarItem = {
   className?: string;
 };
 
-export type SidebarNavProps = Omit<ListboxProps<SidebarItem>, "children"> & {
+export type SidebarNavProps = React.HTMLAttributes<HTMLDivElement> & {
   items: SidebarItem[];
   isCompact?: boolean;
   hideEndContent?: boolean;
@@ -29,7 +24,7 @@ export type SidebarNavProps = Omit<ListboxProps<SidebarItem>, "children"> & {
   onSelectKey?: (key: string) => void;
 };
 
-const SidebarNav = React.forwardRef<HTMLElement, SidebarNavProps>(
+const SidebarNav = React.forwardRef<HTMLDivElement, SidebarNavProps>(
   (
     {
       items,
@@ -37,9 +32,7 @@ const SidebarNav = React.forwardRef<HTMLElement, SidebarNavProps>(
       defaultSelectedKey,
       onSelectKey,
       hideEndContent,
-      itemClasses: itemClassesProp = {},
       iconClassName,
-      classNames,
       className,
       ...props
     },
@@ -51,70 +44,46 @@ const SidebarNav = React.forwardRef<HTMLElement, SidebarNavProps>(
       setSelected(defaultSelectedKey);
     }, [defaultSelectedKey]);
 
-    const itemClasses = {
-      ...itemClassesProp,
-      base: cn(itemClassesProp?.base, {
-        "w-11 h-11 gap-0 p-0": isCompact,
-      }),
-    };
-
     return (
-      <Listbox
-        key={isCompact ? "compact" : "default"}
-        ref={ref}
-        hideSelectedIcon
-        as="nav"
-        className={cn("list-none", className)}
-        classNames={{
-          ...classNames,
-          list: cn("items-center", classNames?.list),
-        }}
-        color="default"
-        itemClasses={{
-          ...itemClasses,
-          base: cn(
-            "px-3 min-h-11 rounded-large h-[44px] data-[selected=true]:bg-default-100",
-            itemClasses?.base
-          ),
-          title: cn(
-            "text-small font-medium text-default-500 group-data-[selected=true]:text-foreground",
-            itemClasses?.title
-          ),
-        }}
-        items={items}
-        selectedKeys={[selected] as unknown as Selection}
-        selectionMode="single"
-        variant="flat"
-        onSelectionChange={(keys) => {
-          const key = Array.from(keys)[0];
-          setSelected(key as React.Key);
-          onSelectKey?.(key as string);
-        }}
-        {...props}
-      >
-        {(item) => (
-          <ListboxItem
-            key={item.key}
-            endContent={isCompact || hideEndContent ? null : (item.endContent ?? null)}
-            startContent={
-              isCompact ? null : item.icon ? (
-                <Icon
-                  className={cn(
-                    "text-default-500 group-data-[selected=true]:text-foreground",
-                    iconClassName
-                  )}
-                  icon={item.icon}
-                  width={24}
-                />
-              ) : (
-                (item.startContent ?? null)
-              )
-            }
-            textValue={item.title}
-            title={isCompact ? null : item.title}
-          />
-        )}
-      </Listbox>
+      <nav ref={ref} className={cn("space-y-1", className)} {...props}>
+        {items.map((item) => {
+          const isSelected = selected === item.key;
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => {
+                setSelected(item.key);
+                onSelectKey?.(item.key);
+              }}
+              className={cn(
+                "group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors",
+                isCompact && "h-11 w-11 justify-center p-0",
+                isSelected
+                  ? "bg-accent text-foreground shadow-sm"
+                  : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
+              )}
+            >
+              {!isCompact &&
+                (item.icon ? (
+                  <Icon
+                    className={cn(
+                      "text-muted-foreground group-hover:text-foreground",
+                      isSelected && "text-foreground",
+                      iconClassName
+                    )}
+                    icon={item.icon}
+                    width={20}
+                  />
+                ) : (
+                  (item.startContent ?? null)
+                ))}
+              {!isCompact && <span className="truncate">{item.title}</span>}
+              {!isCompact && !hideEndContent && (item.endContent ?? null)}
+            </button>
+          );
+        })}
+      </nav>
     );
   }
 );

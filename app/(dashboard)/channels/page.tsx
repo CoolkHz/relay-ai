@@ -1,32 +1,23 @@
 "use client";
 
+// Usage: manage provider channels with responsive table and dialog.
 import { useState } from "react";
 import useSWR from "swr";
-import {
-  Card,
-  CardBody,
-  CardHeader,
-  Table,
-  TableHeader,
-  TableColumn,
-  TableBody,
-  TableRow,
-  TableCell,
-  Button,
-  Chip,
-  Modal,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalFooter,
-  Input,
-  Select,
-  SelectItem,
-  useDisclosure,
-  Tooltip,
-  Spinner,
-} from "@heroui/react";
-import { Plus, Pencil, Trash2, Server, Search, Globe, Key } from "lucide-react";
+import { Globe, Pencil, Plus, Search, Server, Trash2 } from "lucide-react";
+
+import { FormField } from "@/components/dashboard/form-field";
+import { PageHeader } from "@/components/dashboard/page-header";
+import { ResponsiveTable } from "@/components/dashboard/responsive-table";
+import { SectionHeader } from "@/components/dashboard/section-header";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -50,7 +41,7 @@ interface Channel {
 
 export default function ChannelsPage() {
   const { data, mutate, isLoading } = useSWR("/api/admin/channels", fetcher);
-  const { isOpen, onOpen, onClose } = useDisclosure();
+  const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Channel | null>(null);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState({
@@ -66,7 +57,7 @@ export default function ChannelsPage() {
   const openCreate = () => {
     setEditing(null);
     setForm({ name: "", type: "openai_chat", baseUrl: "", apiKey: "", models: "", weight: 1, priority: 0 });
-    onOpen();
+    setOpen(true);
   };
 
   const openEdit = (channel: Channel) => {
@@ -80,7 +71,7 @@ export default function ChannelsPage() {
       weight: channel.weight,
       priority: channel.priority,
     });
-    onOpen();
+    setOpen(true);
   };
 
   const handleSubmit = async () => {
@@ -103,7 +94,7 @@ export default function ChannelsPage() {
       });
     }
 
-    onClose();
+    setOpen(false);
     mutate();
   };
 
@@ -122,244 +113,347 @@ export default function ChannelsPage() {
     mutate();
   };
 
-  const filteredData = (data?.data || []).filter((channel: Channel) =>
+  const channels = Array.isArray(data?.data) ? (data.data as Channel[]) : [];
+  const filteredData = channels.filter((channel) =>
     channel.name.toLowerCase().includes(search.toLowerCase()) ||
     channel.type.toLowerCase().includes(search.toLowerCase())
   );
+  const activeCount = channels.filter((channel) => channel.status === "active").length;
+  const disabledCount = channels.filter((channel) => channel.status !== "active").length;
 
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">渠道管理</h1>
-          <p className="text-default-500 text-sm mt-0.5">管理 API 提供商连接</p>
-        </div>
-        <Button 
-          color="primary" 
-          size="sm"
-          startContent={<Plus size={16} />} 
-          onPress={openCreate}
-        >
-          添加渠道
-        </Button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="渠道管理"
+        description="管理 API 提供商连接"
+        actions={
+          <Button onClick={openCreate} className="gap-2">
+            <Plus className="h-4 w-4" />
+            添加渠道
+          </Button>
+        }
+      />
 
-      {/* Search & Stats */}
-      <div className="flex items-center gap-3">
-        <Input
-          placeholder="搜索渠道..."
-          value={search}
-          onValueChange={setSearch}
-          startContent={<Search size={16} className="text-default-400" />}
-          className="max-w-[240px]"
-          size="sm"
-          variant="bordered"
-        />
-        <div className="flex-1" />
-        <div className="flex items-center gap-4 text-xs">
-          <div className="flex items-center gap-1.5">
-            <div className="h-1.5 w-1.5 rounded-full bg-success" />
-            <span className="text-default-500">
-              {(data?.data || []).filter((c: Channel) => c.status === "active").length} 启用
-            </span>
+      <Card>
+        <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative w-full sm:max-w-xs">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="搜索渠道..."
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="pl-9"
+            />
           </div>
-          <div className="flex items-center gap-1.5">
-            <div className="h-1.5 w-1.5 rounded-full bg-danger" />
-            <span className="text-default-500">
-              {(data?.data || []).filter((c: Channel) => c.status !== "active").length} 禁用
-            </span>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <Badge variant="success" className="gap-2">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              启用 {activeCount}
+            </Badge>
+            <Badge variant="destructive" className="gap-2">
+              <span className="h-2 w-2 rounded-full bg-destructive" />
+              禁用 {disabledCount}
+            </Badge>
+            <Badge variant="outline" className="gap-2">
+              总数 {channels.length}
+            </Badge>
           </div>
-        </div>
-      </div>
-
-      {/* Table */}
-      <Card className="shadow-sm">
-        <CardHeader className="px-4 py-3 border-b border-divider/60">
-          <div className="flex items-center gap-2">
-            <Server size={16} className="text-primary" />
-            <span className="text-sm font-semibold">所有渠道</span>
-            <Chip size="sm" variant="flat">{filteredData.length}</Chip>
-          </div>
-        </CardHeader>
-        <CardBody className="p-0">
-          {isLoading ? (
-            <div className="flex justify-center items-center py-10">
-              <Spinner size="md" color="primary" />
-            </div>
-          ) : (
-            <Table aria-label="渠道列表" removeWrapper classNames={{ th: "text-xs", td: "py-3" }}>
-              <TableHeader>
-                <TableColumn>名称</TableColumn>
-                <TableColumn>类型</TableColumn>
-                <TableColumn>基础 URL</TableColumn>
-                <TableColumn>模型</TableColumn>
-                <TableColumn>权重</TableColumn>
-                <TableColumn>状态</TableColumn>
-                <TableColumn align="center">操作</TableColumn>
-              </TableHeader>
-              <TableBody emptyContent="暂无渠道">
-                {filteredData.map((channel: Channel) => (
-                  <TableRow key={channel.id} className="hover:bg-default-50/50 transition-colors">
-                    <TableCell>
-                      <div className="flex items-center gap-2.5">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10">
-                          <Server size={14} className="text-primary" />
-                        </div>
-                        <span className="text-sm font-medium">{channel.name}</span>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Chip size="sm" variant="flat" color="secondary">{channel.type}</Chip>
-                    </TableCell>
-                    <TableCell>
-                      <Tooltip content={channel.baseUrl}>
-                        <div className="flex items-center gap-1.5 max-w-[180px]">
-                          <Globe size={12} className="text-default-400 flex-shrink-0" />
-                          <span className="truncate text-xs text-default-500">{channel.baseUrl}</span>
-                        </div>
-                      </Tooltip>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1 max-w-[160px]">
-                        {channel.models?.slice(0, 2).map((m) => (
-                          <Chip key={m} size="sm" variant="flat">{m}</Chip>
-                        ))}
-                        {(channel.models?.length || 0) > 2 && (
-                          <Chip size="sm" variant="flat">+{channel.models.length - 2}</Chip>
-                        )}
-                        {!channel.models?.length && <span className="text-default-400 text-xs">-</span>}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Chip size="sm" variant="bordered">{channel.weight}</Chip>
-                    </TableCell>
-                    <TableCell>
-                      <Chip
-                        size="sm"
-                        color={channel.status === "active" ? "success" : "danger"}
-                        variant="dot"
-                        className="cursor-pointer"
-                        onClick={() => toggleStatus(channel)}
-                      >
-                        {channel.status}
-                      </Chip>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex justify-center gap-0.5">
-                        <Tooltip content="编辑">
-                          <Button isIconOnly size="sm" variant="light" onPress={() => openEdit(channel)}>
-                            <Pencil size={14} />
-                          </Button>
-                        </Tooltip>
-                        <Tooltip content="删除" color="danger">
-                          <Button isIconOnly size="sm" variant="light" color="danger" onPress={() => handleDelete(channel.id)}>
-                            <Trash2 size={14} />
-                          </Button>
-                        </Tooltip>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardBody>
+        </CardContent>
       </Card>
 
-      {/* Modal */}
-      <Modal isOpen={isOpen} onClose={onClose} size="xl" backdrop="blur">
-        <ModalContent>
-          <ModalHeader className="flex items-center gap-2 text-base pb-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10">
-              <Server size={14} className="text-primary" />
+      <Card>
+        <CardHeader className="pb-4">
+          <SectionHeader
+            title="所有渠道"
+            description="按渠道查看状态与可用模型"
+            icon={<Server className="h-4 w-4" />}
+            count={filteredData.length}
+          />
+        </CardHeader>
+        <CardContent className="pt-0">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Spinner size="lg" />
             </div>
-            {editing ? "编辑渠道" : "添加渠道"}
-          </ModalHeader>
-          <ModalBody className="py-4">
-            <div className="grid grid-cols-2 gap-3">
-              <Input 
-                label="名称" 
-                placeholder="我的 OpenAI 渠道"
-                value={form.name} 
-                onValueChange={(v) => setForm({ ...form, name: v })} 
-                isRequired 
-                variant="bordered"
-                size="sm"
-                startContent={<Server size={14} className="text-default-400" />}
-              />
-              <Select
-                label="类型"
-                selectedKeys={[form.type]}
-                onSelectionChange={(keys) => setForm({ ...form, type: Array.from(keys)[0] as string })}
-                variant="bordered"
-                size="sm"
+          ) : (
+            <ResponsiveTable
+              data={filteredData}
+              getRowId={(channel) => channel.id}
+              emptyState="暂无渠道"
+              tableLabel="渠道列表"
+              columns={[
+                {
+                  key: "name",
+                  header: "名称",
+                  cell: (channel) => (
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                        <Server className="h-4 w-4" />
+                      </div>
+                      <span className="text-sm font-semibold">{channel.name}</span>
+                    </div>
+                  ),
+                },
+                {
+                  key: "type",
+                  header: "类型",
+                  cell: (channel) => <Badge variant="secondary">{channel.type}</Badge>,
+                },
+                {
+                  key: "baseUrl",
+                  header: "基础 URL",
+                  cell: (channel) => (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex max-w-[220px] items-center gap-2 text-xs text-muted-foreground">
+                          <Globe className="h-3.5 w-3.5" />
+                          <span className="truncate">{channel.baseUrl}</span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>{channel.baseUrl}</TooltipContent>
+                    </Tooltip>
+                  ),
+                },
+                {
+                  key: "models",
+                  header: "模型",
+                  cell: (channel) => (
+                    <div className="flex flex-wrap gap-1.5">
+                      {channel.models?.slice(0, 2).map((model) => (
+                        <Badge key={model} variant="outline">
+                          {model}
+                        </Badge>
+                      ))}
+                      {(channel.models?.length || 0) > 2 ? (
+                        <Badge variant="outline">+{channel.models.length - 2}</Badge>
+                      ) : null}
+                      {!channel.models?.length ? <span className="text-xs text-muted-foreground">-</span> : null}
+                    </div>
+                  ),
+                },
+                {
+                  key: "weight",
+                  header: "权重",
+                  cell: (channel) => <Badge variant="outline">{channel.weight}</Badge>,
+                },
+                {
+                  key: "status",
+                  header: "状态",
+                  cell: (channel) => (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="gap-2 px-2 text-xs font-medium"
+                      onClick={() => toggleStatus(channel)}
+                    >
+                      <span
+                        className={`h-2 w-2 rounded-full ${
+                          channel.status === "active" ? "bg-emerald-500" : "bg-destructive"
+                        }`}
+                      />
+                      {channel.status}
+                    </Button>
+                  ),
+                },
+                {
+                  key: "actions",
+                  header: "操作",
+                  align: "right",
+                  cell: (channel) => (
+                    <div className="flex items-center justify-end gap-1">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button variant="ghost" size="icon" onClick={() => openEdit(channel)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>编辑</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:bg-destructive/10"
+                            onClick={() => handleDelete(channel.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>删除</TooltipContent>
+                      </Tooltip>
+                    </div>
+                  ),
+                },
+              ]}
+              renderMobileCard={(channel) => (
+                <Card className="border border-border/60">
+                  <CardContent className="space-y-3 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                          <Server className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold">{channel.name}</p>
+                          <Badge variant="secondary" className="mt-1">
+                            {channel.type}
+                          </Badge>
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => toggleStatus(channel)}
+                      >
+                        <span
+                          className={`h-2 w-2 rounded-full ${
+                            channel.status === "active" ? "bg-emerald-500" : "bg-destructive"
+                          }`}
+                        />
+                        {channel.status}
+                      </Button>
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Globe className="h-3.5 w-3.5" />
+                      <span className="truncate">{channel.baseUrl}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {channel.models?.slice(0, 3).map((model) => (
+                        <Badge key={model} variant="outline">
+                          {model}
+                        </Badge>
+                      ))}
+                      {(channel.models?.length || 0) > 3 ? (
+                        <Badge variant="outline">+{channel.models.length - 3}</Badge>
+                      ) : null}
+                      {!channel.models?.length ? <span className="text-xs text-muted-foreground">暂无模型</span> : null}
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <Badge variant="outline">权重 {channel.weight}</Badge>
+                      <div className="flex items-center gap-2">
+                        <Button variant="ghost" size="icon" onClick={() => openEdit(channel)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive hover:bg-destructive/10"
+                          onClick={() => handleDelete(channel.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            />
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Server className="h-4 w-4" />
+              </span>
+              {editing ? "编辑渠道" : "添加渠道"}
+            </DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="max-h-[70vh] pr-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField label="名称" required htmlFor="channel-name">
+                <Input
+                  id="channel-name"
+                  placeholder="我的 OpenAI 渠道"
+                  value={form.name}
+                  onChange={(event) => setForm({ ...form, name: event.target.value })}
+                  required
+                />
+              </FormField>
+              <FormField label="类型" required htmlFor="channel-type">
+                <Select
+                  value={form.type}
+                  onValueChange={(value) => setForm({ ...form, type: value })}
+                >
+                  <SelectTrigger id="channel-type">
+                    <SelectValue placeholder="选择类型" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {channelTypes.map((type) => (
+                      <SelectItem key={type.key} value={type.key}>
+                        {type.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+              <FormField label="基础 URL" required htmlFor="channel-base-url" className="sm:col-span-2">
+                <Input
+                  id="channel-base-url"
+                  placeholder="https://api.openai.com/v1"
+                  value={form.baseUrl}
+                  onChange={(event) => setForm({ ...form, baseUrl: event.target.value })}
+                  required
+                />
+              </FormField>
+              <FormField
+                label="API 密钥"
+                required={!editing}
+                htmlFor="channel-api-key"
+                className="sm:col-span-2"
               >
-                {channelTypes.map((t) => (
-                  <SelectItem key={t.key}>{t.label}</SelectItem>
-                ))}
-              </Select>
-              <Input 
-                label="基础 URL" 
-                placeholder="https://api.openai.com/v1"
-                value={form.baseUrl} 
-                onValueChange={(v) => setForm({ ...form, baseUrl: v })} 
-                isRequired 
-                variant="bordered"
-                size="sm"
-                className="col-span-2"
-                startContent={<Globe size={14} className="text-default-400" />}
-              />
-              <Input 
-                label="API 密钥" 
-                type="password" 
-                placeholder={editing ? "留空保持不变" : "sk-..."}
-                value={form.apiKey} 
-                onValueChange={(v) => setForm({ ...form, apiKey: v })} 
-                isRequired={!editing} 
-                variant="bordered"
-                size="sm"
-                className="col-span-2"
-                startContent={<Key size={14} className="text-default-400" />}
-              />
-              <Input 
-                label="模型" 
-                placeholder="gpt-4o, gpt-4o-mini"
-                description="逗号分隔"
-                value={form.models} 
-                onValueChange={(v) => setForm({ ...form, models: v })} 
-                variant="bordered"
-                size="sm"
-                className="col-span-2"
-              />
-              <Input 
-                label="权重" 
-                type="number" 
-                description="越高流量越多"
-                value={String(form.weight)} 
-                onValueChange={(v) => setForm({ ...form, weight: parseInt(v) || 1 })} 
-                variant="bordered"
-                size="sm"
-              />
-              <Input 
-                label="优先级" 
-                type="number" 
-                description="越高越优先"
-                value={String(form.priority)} 
-                onValueChange={(v) => setForm({ ...form, priority: parseInt(v) || 0 })} 
-                variant="bordered"
-                size="sm"
-              />
+                <Input
+                  id="channel-api-key"
+                  type="password"
+                  placeholder={editing ? "留空保持不变" : "sk-..."}
+                  value={form.apiKey}
+                  onChange={(event) => setForm({ ...form, apiKey: event.target.value })}
+                  required={!editing}
+                />
+              </FormField>
+              <FormField label="模型" description="逗号分隔" htmlFor="channel-models" className="sm:col-span-2">
+                <Input
+                  id="channel-models"
+                  placeholder="gpt-4o, gpt-4o-mini"
+                  value={form.models}
+                  onChange={(event) => setForm({ ...form, models: event.target.value })}
+                />
+              </FormField>
+              <FormField label="权重" description="越高流量越多" htmlFor="channel-weight">
+                <Input
+                  id="channel-weight"
+                  type="number"
+                  value={String(form.weight)}
+                  onChange={(event) =>
+                    setForm({ ...form, weight: parseInt(event.target.value, 10) || 1 })
+                  }
+                />
+              </FormField>
+              <FormField label="优先级" description="越高越优先" htmlFor="channel-priority">
+                <Input
+                  id="channel-priority"
+                  type="number"
+                  value={String(form.priority)}
+                  onChange={(event) =>
+                    setForm({ ...form, priority: parseInt(event.target.value, 10) || 0 })
+                  }
+                />
+              </FormField>
             </div>
-          </ModalBody>
-          <ModalFooter className="pt-2">
-            <Button variant="flat" size="sm" onPress={onClose}>取消</Button>
-            <Button color="primary" size="sm" onPress={handleSubmit}>
-              {editing ? "更新" : "创建"}
+          </ScrollArea>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              取消
             </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+            <Button onClick={handleSubmit}>{editing ? "更新" : "创建"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

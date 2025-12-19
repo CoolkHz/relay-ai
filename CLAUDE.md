@@ -42,7 +42,7 @@ pnpm db:reset     # 重置数据库
 - `lib/db/` - Drizzle ORM schema 和数据库操作
 - `lib/auth/` - API Key 和 Session 认证
 - `lib/cache/` - KV 缓存层
-- `components/ui/` - HeroUI 封装组件
+- `components/ui/` - shadcn/ui 组件
 
 ### 关键设计模式
 
@@ -61,6 +61,6 @@ pnpm db:reset     # 重置数据库
 ## 技术栈
 
 - Next.js 16 (App Router)
-- React 19 + HeroUI + Tailwind CSS 4
+- React 19 + shadcn/ui + Tailwind CSS 4
 - Drizzle ORM + MySQL
 - SWR 数据获取

@@ -1,9 +1,13 @@
 "use client";
 
+// Usage: login form page for admin access.
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardBody, Input, Button } from "@heroui/react";
 import { Icon } from "@iconify/react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -49,59 +53,53 @@ export default function LoginPage() {
             <Icon icon="solar:bolt-linear" className="text-background" width={20} />
           </div>
           <h1 className="text-xl font-bold uppercase">Relay AI</h1>
-          <p className="mt-1 text-small text-default-500">API 网关</p>
+          <p className="mt-1 text-sm text-muted-foreground">API 网关</p>
         </div>
 
         <Card>
-          <CardBody className="p-6">
-            <div className="mb-6 text-center">
-              <h2 className="text-lg font-semibold">欢迎回来</h2>
-              <p className="text-small text-default-400">登录以继续</p>
-            </div>
-
+          <CardHeader className="space-y-1 text-center">
+            <CardTitle className="text-lg">欢迎回来</CardTitle>
+            <CardDescription>登录以继续</CardDescription>
+          </CardHeader>
+          <CardContent>
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               {error && (
-                <div className="flex items-center gap-2 rounded-medium bg-danger-50 p-3 text-small text-danger">
+                <div className="flex items-center gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
                   <Icon icon="solar:danger-circle-linear" width={16} />
                   {error}
                 </div>
               )}
-              
-              <Input
-                label="用户名"
-                placeholder="请输入用户名"
-                value={username}
-                onValueChange={setUsername}
-                isRequired
-                variant="bordered"
-                fullWidth
-                autoComplete="username"
-                size="lg"
-              />
 
-              <Input
-                label="密码"
-                placeholder="请输入密码"
-                type="password"
-                value={password}
-                onValueChange={setPassword}
-                isRequired
-                variant="bordered"
-                fullWidth
-                autoComplete="current-password"
-                size="lg"
-              />
+              <div className="space-y-2">
+                <Label htmlFor="username">用户名</Label>
+                <Input
+                  id="username"
+                  placeholder="请输入用户名"
+                  value={username}
+                  onChange={(event) => setUsername(event.target.value)}
+                  required
+                  autoComplete="username"
+                />
+              </div>
 
-              <Button
-                type="submit"
-                color="primary"
-                isLoading={loading}
-                className="mt-2"
-              >
-                登录
+              <div className="space-y-2">
+                <Label htmlFor="password">密码</Label>
+                <Input
+                  id="password"
+                  placeholder="请输入密码"
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  required
+                  autoComplete="current-password"
+                />
+              </div>
+
+              <Button type="submit" disabled={loading} className="mt-2">
+                {loading ? "登录中..." : "登录"}
               </Button>
             </form>
-          </CardBody>
+          </CardContent>
         </Card>
       </div>
     </div>

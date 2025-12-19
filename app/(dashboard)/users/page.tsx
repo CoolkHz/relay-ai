@@ -1,34 +1,27 @@
 "use client";
 
+// Usage: users admin CRUD and API key management.
 import { useState } from "react";
 import useSWR from "swr";
-import {
-  Card,
-  CardBody,
-  CardHeader,
-  Table,
-  TableHeader,
-  TableColumn,
-  TableBody,
-  TableRow,
-  TableCell,
-  Button,
-  Chip,
-  Modal,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalFooter,
-  Input,
-  Select,
-  SelectItem,
-  useDisclosure,
-  Tooltip,
-  Spinner,
-  Avatar,
-  Progress,
-} from "@heroui/react";
 import { Plus, Pencil, Trash2, Key, Copy, Check, Users, Search, Mail, Shield } from "lucide-react";
+
+import { FormField } from "@/components/dashboard/form-field";
+import { PageHeader } from "@/components/dashboard/page-header";
+import { SectionHeader } from "@/components/dashboard/section-header";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Spinner } from "@/components/ui/spinner";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils/cn";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -56,8 +49,8 @@ const roleOptions = [
 
 export default function UsersPage() {
   const { data, mutate, isLoading } = useSWR("/api/admin/users", fetcher);
-  const { isOpen: isUserModalOpen, onOpen: onUserModalOpen, onClose: onUserModalClose } = useDisclosure();
-  const { isOpen: isKeysModalOpen, onOpen: onKeysModalOpen, onClose: onKeysModalClose } = useDisclosure();
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [isKeysModalOpen, setIsKeysModalOpen] = useState(false);
 
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [editing, setEditing] = useState<User | null>(null);
@@ -75,7 +68,7 @@ export default function UsersPage() {
   const openCreate = () => {
     setEditing(null);
     setForm({ username: "", email: "", password: "", role: "user", quota: "0" });
-    onUserModalOpen();
+    setIsUserModalOpen(true);
   };
 
   const openEdit = (user: User) => {
@@ -87,14 +80,14 @@ export default function UsersPage() {
       role: user.role,
       quota: String(user.quota),
     });
-    onUserModalOpen();
+    setIsUserModalOpen(true);
   };
 
   const openKeys = (user: User) => {
     setSelectedUser(user);
     setNewKey(null);
     setKeyName("");
-    onKeysModalOpen();
+    setIsKeysModalOpen(true);
   };
 
   const handleSubmit = async () => {
@@ -115,12 +108,12 @@ export default function UsersPage() {
       });
     }
 
-    onUserModalClose();
+    setIsUserModalOpen(false);
     mutate();
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this user?")) return;
+    if (!confirm("确定要删除此用户吗？")) return;
     await fetch(`/api/admin/users/${id}`, { method: "DELETE" });
     mutate();
   };
@@ -139,7 +132,7 @@ export default function UsersPage() {
   };
 
   const deleteKey = async (keyId: number) => {
-    if (!selectedUser || !confirm("Delete this API key?")) return;
+    if (!selectedUser || !confirm("确定要删除此 API 密钥吗？")) return;
     await fetch(`/api/admin/users/${selectedUser.id}/keys?keyId=${keyId}`, { method: "DELETE" });
     mutateKeys();
   };
@@ -152,339 +145,394 @@ export default function UsersPage() {
     }
   };
 
-  const filteredData = (data?.data || []).filter((user: User) =>
+  const users = Array.isArray(data?.data) ? (data.data as User[]) : [];
+  const filteredData = users.filter((user) =>
     user.username.toLowerCase().includes(search.toLowerCase()) ||
     user.email.toLowerCase().includes(search.toLowerCase())
   );
+  const adminCount = users.filter((u) => u.role === "admin").length;
+  const userCount = users.filter((u) => u.role === "user").length;
 
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">用户管理</h1>
-          <p className="text-default-500 text-sm mt-0.5">管理用户账户和 API 访问权限</p>
-        </div>
-        <Button 
-          color="primary" 
-          size="sm"
-          startContent={<Plus size={16} />} 
-          onPress={openCreate}
-        >
-          添加用户
-        </Button>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="用户管理"
+        description="管理用户账户和 API 访问权限"
+        actions={
+          <Button onClick={openCreate} className="gap-2">
+            <Plus className="h-4 w-4" />
+            添加用户
+          </Button>
+        }
+      />
 
-      {/* Search & Stats */}
-      <div className="flex items-center gap-4">
-        <Input
-          placeholder="搜索用户..."
-          value={search}
-          onValueChange={setSearch}
-          startContent={<Search size={18} className="text-default-400" />}
-          className="max-w-xs"
-          variant="bordered"
-        />
-        <div className="flex-1" />
-        <div className="flex items-center gap-6 text-small">
-          <div className="flex items-center gap-2">
-            <Shield size={14} className="text-warning" />
-            <span className="text-default-500">
-              {(data?.data || []).filter((u: User) => u.role === "admin").length} 管理员
-            </span>
+      <Card>
+        <CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative w-full sm:max-w-xs">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="搜索用户..."
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className="pl-9"
+            />
           </div>
-          <div className="flex items-center gap-2">
-            <Users size={14} className="text-primary" />
-            <span className="text-default-500">
-              {(data?.data || []).filter((u: User) => u.role === "user").length} 用户
-            </span>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <Badge variant="warning" className="gap-2">
+              <Shield className="h-3.5 w-3.5" />
+              {adminCount} 管理员
+            </Badge>
+            <Badge variant="secondary" className="gap-2">
+              <Users className="h-3.5 w-3.5" />
+              {userCount} 用户
+            </Badge>
+            <Badge variant="outline" className="gap-2">
+              总数 {users.length}
+            </Badge>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
 
-      {/* Table */}
-      <Card className="shadow-sm">
-        <CardHeader className="px-4 py-3 border-b border-divider/60">
-          <div className="flex items-center gap-2">
-            <Users size={18} className="text-primary" />
-            <span className="font-semibold">所有用户</span>
-            <Chip size="sm" variant="flat">{filteredData.length}</Chip>
-          </div>
+      <Card>
+        <CardHeader className="pb-4">
+          <SectionHeader
+            title="所有用户"
+            description="用户账户与配额管理"
+            icon={<Users className="h-4 w-4" />}
+            count={filteredData.length}
+          />
         </CardHeader>
-        <CardBody className="p-0">
+        <CardContent className="pt-0">
           {isLoading ? (
-            <div className="flex justify-center items-center py-12">
-              <Spinner size="lg" color="primary" />
+            <div className="flex items-center justify-center py-12">
+              <Spinner size="lg" />
             </div>
           ) : (
-            <Table aria-label="用户列表" removeWrapper>
+            <Table aria-label="用户列表">
               <TableHeader>
-                <TableColumn>用户</TableColumn>
-                <TableColumn>角色</TableColumn>
-                <TableColumn>配额使用</TableColumn>
-                <TableColumn>状态</TableColumn>
-                <TableColumn align="center">操作</TableColumn>
+                <TableRow>
+                  <TableHead>用户</TableHead>
+                  <TableHead>角色</TableHead>
+                  <TableHead>配额使用</TableHead>
+                  <TableHead>状态</TableHead>
+                  <TableHead className="text-right">操作</TableHead>
+                </TableRow>
               </TableHeader>
-              <TableBody emptyContent="暂无用户">
-                {filteredData.map((user: User) => {
-                  const quotaPercent = user.quota > 0 ? (user.usedQuota / user.quota) * 100 : 0;
-                  return (
-                    <TableRow key={user.id} className="hover:bg-default-50 transition-colors">
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar
-                            name={user.username.charAt(0).toUpperCase()}
-                            size="sm"
-                            classNames={{
-                              base: user.role === "admin" 
-                                ? "bg-gradient-to-br from-warning to-warning-600" 
-                                : "bg-gradient-to-br from-primary to-secondary",
-                              name: "text-white font-semibold",
-                            }}
-                          />
-                          <div>
-                            <p className="font-medium">{user.username}</p>
-                            <p className="text-tiny text-default-400 flex items-center gap-1">
-                              <Mail size={10} />
-                              {user.email}
-                            </p>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          color={user.role === "admin" ? "warning" : "default"}
-                          size="sm"
-                          variant="flat"
-                          startContent={user.role === "admin" ? <Shield size={12} /> : null}
-                        >
-                          {user.role}
-                        </Chip>
-                      </TableCell>
-                      <TableCell>
-                        <div className="w-40">
-                          {Number(user.quota) === 0 ? (
-                            <Chip size="sm" variant="flat" color="success">无限制</Chip>
-                          ) : (
+              <TableBody>
+                {filteredData.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
+                      暂无用户
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredData.map((user) => {
+                    const quotaPercent = user.quota > 0 ? (user.usedQuota / user.quota) * 100 : 0;
+                    return (
+                      <TableRow key={user.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-3">
+                            <Avatar
+                              className={cn(
+                                "h-9 w-9",
+                                user.role === "admin"
+                                  ? "bg-gradient-to-br from-amber-400 to-amber-600 text-white"
+                                  : "bg-gradient-to-br from-primary to-indigo-400 text-white"
+                              )}
+                            >
+                              <AvatarFallback className="bg-transparent text-xs font-semibold text-white">
+                                {user.username.charAt(0).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
                             <div>
-                              <div className="flex justify-between text-tiny mb-1">
-                                <span>{Number(user.usedQuota).toLocaleString()}</span>
-                                <span className="text-default-400">/ {Number(user.quota).toLocaleString()}</span>
-                              </div>
-                              <Progress 
-                                value={quotaPercent} 
-                                size="sm" 
-                                color={quotaPercent > 90 ? "danger" : quotaPercent > 70 ? "warning" : "primary"}
-                              />
+                              <p className="text-sm font-semibold">{user.username}</p>
+                              <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <Mail className="h-3 w-3" />
+                                {user.email}
+                              </p>
                             </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          color={user.status === "active" ? "success" : "danger"}
-                          size="sm"
-                          variant="dot"
-                        >
-                          {user.status}
-                        </Chip>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex justify-center gap-1">
-                          <Tooltip content="API 密钥">
-                            <Button isIconOnly size="sm" variant="light" color="secondary" onPress={() => openKeys(user)}>
-                              <Key size={16} />
-                            </Button>
-                          </Tooltip>
-                          <Tooltip content="编辑">
-                            <Button isIconOnly size="sm" variant="light" onPress={() => openEdit(user)}>
-                              <Pencil size={16} />
-                            </Button>
-                          </Tooltip>
-                          <Tooltip content="删除" color="danger">
-                            <Button isIconOnly size="sm" variant="light" color="danger" onPress={() => handleDelete(user.id)}>
-                              <Trash2 size={16} />
-                            </Button>
-                          </Tooltip>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={user.role === "admin" ? "warning" : "secondary"} className="gap-1.5">
+                            {user.role === "admin" && <Shield className="h-3 w-3" />}
+                            {user.role}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="w-40">
+                            {Number(user.quota) === 0 ? (
+                              <Badge variant="success">无限制</Badge>
+                            ) : (
+                              <div>
+                                <div className="mb-1 flex justify-between text-xs">
+                                  <span>{Number(user.usedQuota).toLocaleString()}</span>
+                                  <span className="text-muted-foreground">
+                                    / {Number(user.quota).toLocaleString()}
+                                  </span>
+                                </div>
+                                <Progress
+                                  value={quotaPercent}
+                                  className="h-2"
+                                  indicatorClassName={
+                                    quotaPercent > 90
+                                      ? "bg-destructive"
+                                      : quotaPercent > 70
+                                        ? "bg-amber-500"
+                                        : "bg-primary"
+                                  }
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={user.status === "active" ? "success" : "destructive"} className="gap-1.5">
+                            <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                            {user.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center justify-end gap-1">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="ghost" size="icon" onClick={() => openKeys(user)}>
+                                  <Key className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>API 密钥</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button variant="ghost" size="icon" onClick={() => openEdit(user)}>
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>编辑</TooltipContent>
+                            </Tooltip>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-destructive hover:bg-destructive/10"
+                                  onClick={() => handleDelete(user.id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>删除</TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
               </TableBody>
             </Table>
           )}
-        </CardBody>
+        </CardContent>
       </Card>
 
-      {/* User Modal */}
-      <Modal isOpen={isUserModalOpen} onClose={onUserModalClose} size="lg" backdrop="blur">
-        <ModalContent>
-          <ModalHeader className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
-              <Users size={16} className="text-primary" />
-            </div>
-            {editing ? "编辑用户" : "添加用户"}
-          </ModalHeader>
-          <ModalBody>
-            <div className="flex flex-col gap-4">
-              <Input
-                label="用户名"
-                placeholder="johndoe"
-                value={form.username}
-                onValueChange={(v) => setForm({ ...form, username: v })}
-                isRequired
-                variant="bordered"
-                startContent={<Users size={16} className="text-default-400" />}
-              />
-              <Input
-                label="邮箱"
-                type="email"
-                placeholder="john@example.com"
-                value={form.email}
-                onValueChange={(v) => setForm({ ...form, email: v })}
-                isRequired
-                variant="bordered"
-                startContent={<Mail size={16} className="text-default-400" />}
-              />
-              <Input
-                label={editing ? "密码（留空保持不变）" : "密码"}
-                type="password"
-                placeholder="••••••••"
-                value={form.password}
-                onValueChange={(v) => setForm({ ...form, password: v })}
-                isRequired={!editing}
-                variant="bordered"
-              />
-              <div className="grid grid-cols-2 gap-4">
-                <Select
-                  label="角色"
-                  selectedKeys={[form.role]}
-                  onSelectionChange={(keys) => setForm({ ...form, role: Array.from(keys)[0] as string })}
-                  variant="bordered"
-                >
-                  {roleOptions.map((opt) => (
-                    <SelectItem key={opt.key}>{opt.label}</SelectItem>
-                  ))}
-                </Select>
+      {/* User Edit/Create Dialog */}
+      <Dialog open={isUserModalOpen} onOpenChange={setIsUserModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Users className="h-4 w-4" />
+              </span>
+              {editing ? "编辑用户" : "添加用户"}
+            </DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="max-h-[70vh] pr-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FormField label="用户名" required htmlFor="user-username">
                 <Input
-                  label="配额"
-                  type="number"
-                  description="0 = 无限制"
-                  value={form.quota}
-                  onValueChange={(v) => setForm({ ...form, quota: v })}
-                  variant="bordered"
+                  id="user-username"
+                  placeholder="johndoe"
+                  value={form.username}
+                  onChange={(event) => setForm({ ...form, username: event.target.value })}
+                  required
                 />
-              </div>
+              </FormField>
+              <FormField label="邮箱" required htmlFor="user-email">
+                <Input
+                  id="user-email"
+                  type="email"
+                  placeholder="john@example.com"
+                  value={form.email}
+                  onChange={(event) => setForm({ ...form, email: event.target.value })}
+                  required
+                />
+              </FormField>
+              <FormField
+                label={editing ? "密码（留空保持不变）" : "密码"}
+                required={!editing}
+                htmlFor="user-password"
+                className="sm:col-span-2"
+              >
+                <Input
+                  id="user-password"
+                  type="password"
+                  placeholder="••••••••"
+                  value={form.password}
+                  onChange={(event) => setForm({ ...form, password: event.target.value })}
+                  required={!editing}
+                />
+              </FormField>
+              <FormField label="角色" required htmlFor="user-role">
+                <Select value={form.role} onValueChange={(value) => setForm({ ...form, role: value })}>
+                  <SelectTrigger id="user-role">
+                    <SelectValue placeholder="选择角色" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roleOptions.map((opt) => (
+                      <SelectItem key={opt.key} value={opt.key}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </FormField>
+              <FormField label="配额" description="0 = 无限制" htmlFor="user-quota">
+                <Input
+                  id="user-quota"
+                  type="number"
+                  value={form.quota}
+                  onChange={(event) => setForm({ ...form, quota: event.target.value })}
+                />
+              </FormField>
             </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant="flat" onPress={onUserModalClose}>取消</Button>
-            <Button color="primary" onPress={handleSubmit} className="font-semibold">
-              {editing ? "更新" : "创建"}
+          </ScrollArea>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsUserModalOpen(false)}>
+              取消
             </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+            <Button onClick={handleSubmit}>{editing ? "更新" : "创建"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      {/* API Keys Modal */}
-      <Modal isOpen={isKeysModalOpen} onClose={onKeysModalClose} size="2xl" backdrop="blur">
-        <ModalContent>
-          <ModalHeader className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary/10">
-              <Key size={16} className="text-secondary" />
-            </div>
-            API 密钥 - {selectedUser?.username}
-          </ModalHeader>
-          <ModalBody>
+      {/* API Keys Dialog */}
+      <Dialog open={isKeysModalOpen} onOpenChange={setIsKeysModalOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-secondary/10 text-secondary">
+                <Key className="h-4 w-4" />
+              </span>
+              API 密钥 - {selectedUser?.username}
+            </DialogTitle>
+          </DialogHeader>
+          <ScrollArea className="max-h-[70vh] pr-4">
             <div className="space-y-4">
               {newKey && (
-                <Card className="border border-success bg-success-50">
-                  <CardBody className="p-4">
-                    <p className="mb-2 text-small font-medium text-success-700">
+                <Card className="border-emerald-500/40 bg-emerald-500/10">
+                  <CardContent className="space-y-2 p-4">
+                    <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
                       🎉 新 API 密钥已创建！请立即复制，之后将无法再次查看。
                     </p>
                     <div className="flex items-center gap-2">
-                      <code className="flex-1 rounded-lg bg-white p-3 text-small font-mono border">
+                      <code className="flex-1 rounded-lg border border-border bg-background p-3 text-sm font-mono">
                         {newKey}
                       </code>
-                      <Button 
-                        isIconOnly 
-                        size="sm" 
-                        color={copied ? "success" : "default"}
-                        variant="flat" 
-                        onPress={copyKey}
+                      <Button
+                        size="icon"
+                        variant={copied ? "default" : "outline"}
+                        onClick={copyKey}
+                        aria-label="复制密钥"
                       >
-                        {copied ? <Check size={16} /> : <Copy size={16} />}
+                        {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                       </Button>
                     </div>
-                  </CardBody>
+                  </CardContent>
                 </Card>
               )}
 
-              <div className="flex gap-2">
-                <Input
-                  placeholder="密钥名称（如：生产环境、开发环境）"
-                  value={keyName}
-                  onValueChange={setKeyName}
-                  className="flex-1"
-                  variant="bordered"
-                  startContent={<Key size={16} className="text-default-400" />}
-                />
-                <Button color="primary" onPress={createKey} isDisabled={!keyName}>
-                  创建密钥
-                </Button>
+              <Separator />
+
+              <div className="space-y-3">
+                <p className="text-sm font-semibold">创建新密钥</p>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="密钥名称（如：生产环境、开发环境）"
+                    value={keyName}
+                    onChange={(event) => setKeyName(event.target.value)}
+                    className="flex-1"
+                  />
+                  <Button onClick={createKey} disabled={!keyName}>
+                    创建密钥
+                  </Button>
+                </div>
               </div>
 
-              <Table aria-label="API 密钥列表" removeWrapper>
-                <TableHeader>
-                  <TableColumn>名称</TableColumn>
-                  <TableColumn>密钥前缀</TableColumn>
-                  <TableColumn>状态</TableColumn>
-                  <TableColumn align="center">操作</TableColumn>
-                </TableHeader>
-                <TableBody emptyContent="暂无 API 密钥">
-                  {(keysData?.data || []).map((key: ApiKey) => (
-                    <TableRow key={key.id}>
-                      <TableCell className="font-medium">{key.name}</TableCell>
-                      <TableCell>
-                        <code className="text-small bg-default-100 px-2 py-1 rounded">{key.keyPrefix}...</code>
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          color={key.status === "active" ? "success" : "danger"}
-                          size="sm"
-                          variant="dot"
-                        >
-                          {key.status}
-                        </Chip>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex justify-center">
-                          <Tooltip content="删除" color="danger">
-                            <Button
-                              isIconOnly
-                              size="sm"
-                              variant="light"
-                              color="danger"
-                              onPress={() => deleteKey(key.id)}
-                            >
-                              <Trash2 size={16} />
-                            </Button>
-                          </Tooltip>
-                        </div>
-                      </TableCell>
+              <Separator />
+
+              <div className="space-y-3">
+                <p className="text-sm font-semibold">现有密钥</p>
+                <Table aria-label="API 密钥列表">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>名称</TableHead>
+                      <TableHead>密钥前缀</TableHead>
+                      <TableHead>状态</TableHead>
+                      <TableHead className="text-right">操作</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {!keysData?.data || keysData.data.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">
+                          暂无 API 密钥
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      (keysData.data as ApiKey[]).map((key) => (
+                        <TableRow key={key.id}>
+                          <TableCell className="font-medium">{key.name}</TableCell>
+                          <TableCell>
+                            <code className="rounded bg-muted px-2 py-1 text-xs font-mono">{key.keyPrefix}...</code>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={key.status === "active" ? "success" : "destructive"} className="gap-1.5">
+                              <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                              {key.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex justify-end">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="text-destructive hover:bg-destructive/10"
+                                    onClick={() => deleteKey(key.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>删除</TooltipContent>
+                              </Tooltip>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
             </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button variant="flat" onPress={onKeysModalClose}>关闭</Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
+          </ScrollArea>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsKeysModalOpen(false)}>
+              关闭
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
