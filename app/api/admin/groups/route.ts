@@ -2,7 +2,6 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { groups, groupChannels, channels } from "@/lib/db/schema";
 import { requireAdmin } from "@/lib/auth/session";
-import { invalidateGroupCache } from "@/lib/balancer";
 import { desc, eq } from "drizzle-orm";
 
 export async function GET() {

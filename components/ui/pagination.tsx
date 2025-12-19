@@ -15,7 +15,7 @@ type PaginationProps = {
 function buildPageRange(current: number, total: number) {
   const rangeSize = 5;
   let start = Math.max(1, current - 2);
-  let end = Math.min(total, start + rangeSize - 1);
+  const end = Math.min(total, start + rangeSize - 1);
   start = Math.max(1, end - rangeSize + 1);
   const pages: number[] = [];
   for (let i = start; i <= end; i += 1) pages.push(i);

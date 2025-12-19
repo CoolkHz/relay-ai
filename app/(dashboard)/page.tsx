@@ -45,10 +45,18 @@ export default function DashboardPage() {
     );
   }
 
-  const stats = data?.summary || {};
-  const successRate = Number(stats.successRate) || 0;
+  const summary = data?.summary || {};
+  const stats = {
+    totalRequests: Number(summary.totalRequests ?? 0),
+    successRate: Number(summary.successRate ?? 0),
+    totalInputTokens: Number(summary.totalInputTokens ?? 0),
+    totalOutputTokens: Number(summary.totalOutputTokens ?? 0),
+    totalCost: Number(summary.totalCost ?? 0),
+    avgLatency: Number(summary.avgLatency ?? 0),
+  };
+  const successRate = stats.successRate || 0;
   const dailyBreakdown = Array.isArray(data?.dailyBreakdown) ? data.dailyBreakdown : [];
-  const totalTokens = (stats.totalInputTokens || 0) + (stats.totalOutputTokens || 0);
+  const totalTokens = stats.totalInputTokens + stats.totalOutputTokens;
 
   const chartData = dailyBreakdown.map((day: { date: string; requests?: number; successCount?: number }) => ({
     name: day.date?.slice(5) || "",
@@ -57,19 +65,19 @@ export default function DashboardPage() {
   }));
 
   return (
-    <div className="space-y-8">
-      <div>
+    <div className="space-y-8 lg:space-y-10">
+      <div className="space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">仪表盘</h2>
         <p className="text-muted-foreground">API 网关运行状态概览</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">总请求数</CardTitle>
             <Activity className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-6 pt-2">
             <div className="text-2xl font-bold">{(stats.totalRequests || 0).toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
               成功率 {successRate.toFixed(1)}%
@@ -82,7 +90,7 @@ export default function DashboardPage() {
             <CardTitle className="text-sm font-medium">总 Token</CardTitle>
             <Zap className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-6 pt-2">
             <div className="text-2xl font-bold">{totalTokens.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
               输入 {(stats.totalInputTokens || 0).toLocaleString()} / 输出 {(stats.totalOutputTokens || 0).toLocaleString()}
@@ -95,7 +103,7 @@ export default function DashboardPage() {
             <CardTitle className="text-sm font-medium">总费用</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-6 pt-2">
             <div className="text-2xl font-bold">${(stats.totalCost || 0).toFixed(4)}</div>
             <p className="text-xs text-muted-foreground">近 7 天汇总</p>
           </CardContent>
@@ -106,7 +114,7 @@ export default function DashboardPage() {
             <CardTitle className="text-sm font-medium">平均延迟</CardTitle>
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-6 pt-2">
             <div className="text-2xl font-bold">{stats.avgLatency || 0}ms</div>
             <p className="text-xs text-muted-foreground">响应时间</p>
           </CardContent>
@@ -119,7 +127,7 @@ export default function DashboardPage() {
             <CardTitle>概览</CardTitle>
             <CardDescription>近 7 天请求趋势</CardDescription>
           </CardHeader>
-          <CardContent className="pl-2">
+          <CardContent className="px-2 pb-6 pt-0 sm:px-6">
             <Tabs value={trendMetric} onValueChange={(v) => setTrendMetric(v as "requests" | "tokens")}>
               <TabsList>
                 <TabsTrigger value="requests">请求量</TabsTrigger>

@@ -59,7 +59,7 @@ export async function POST(request: NextRequest, { params }: Params) {
   return Response.json({ key, prefix });
 }
 
-export async function DELETE(request: NextRequest, { params }: Params) {
+export async function DELETE(request: NextRequest) {
   try {
     await requireAdmin();
   } catch {

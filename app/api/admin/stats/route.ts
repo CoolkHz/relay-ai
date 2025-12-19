@@ -1,8 +1,8 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { requestLogs, dailyStats } from "@/lib/db/schema";
+import { requestLogs } from "@/lib/db/schema";
 import { requireAdmin } from "@/lib/auth/session";
-import { sql, gte, and, eq } from "drizzle-orm";
+import { sql, gte } from "drizzle-orm";
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const daysParam = Number(searchParams.get("days"));
   const days = Number.isFinite(daysParam) && daysParam > 0 ? daysParam : 7;
+  const toNumber = (value: unknown) => Number(value ?? 0);
 
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
@@ -44,7 +45,7 @@ export async function GET(request: NextRequest) {
     };
 
   // Get daily breakdown
-  const dailyBreakdown = await db
+  const dailyBreakdownRaw = await db
     .select({
       date: sql<string>`DATE(created_at)`,
       requests: sql<number>`count(*)`,
@@ -59,7 +60,7 @@ export async function GET(request: NextRequest) {
     .orderBy(sql`DATE(created_at)`);
 
   // Get top models
-  const topModels = await db
+  const topModelsRaw = await db
     .select({
       model: requestLogs.requestModel,
       requests: sql<number>`count(*)`,
@@ -72,7 +73,7 @@ export async function GET(request: NextRequest) {
     .limit(10);
 
   // Get channel stats
-  const channelStats = await db
+  const channelStatsRaw = await db
     .select({
       channelId: requestLogs.channelId,
       requests: sql<number>`count(*)`,
@@ -85,19 +86,35 @@ export async function GET(request: NextRequest) {
 
   return Response.json({
     summary: {
-      totalRequests: summaryData.totalRequests || 0,
-      successRequests: summaryData.successRequests || 0,
-      errorRequests: summaryData.errorRequests || 0,
+      totalRequests: toNumber(summaryData.totalRequests),
+      successRequests: toNumber(summaryData.successRequests),
+      errorRequests: toNumber(summaryData.errorRequests),
       successRate: summaryData.totalRequests
-        ? ((summaryData.successRequests || 0) / summaryData.totalRequests) * 100
+        ? (toNumber(summaryData.successRequests) / toNumber(summaryData.totalRequests)) * 100
         : 0,
-      totalInputTokens: summaryData.totalInputTokens || 0,
-      totalOutputTokens: summaryData.totalOutputTokens || 0,
-      totalCost: summaryData.totalCost || 0,
-      avgLatency: Math.round(summaryData.avgLatency || 0),
+      totalInputTokens: toNumber(summaryData.totalInputTokens),
+      totalOutputTokens: toNumber(summaryData.totalOutputTokens),
+      totalCost: toNumber(summaryData.totalCost),
+      avgLatency: Math.round(toNumber(summaryData.avgLatency)),
     },
-    dailyBreakdown,
-    topModels,
-    channelStats,
+    dailyBreakdown: dailyBreakdownRaw.map((day) => ({
+      date: day.date,
+      requests: toNumber(day.requests),
+      successCount: toNumber(day.successCount),
+      inputTokens: toNumber(day.inputTokens),
+      outputTokens: toNumber(day.outputTokens),
+      cost: toNumber(day.cost),
+    })),
+    topModels: topModelsRaw.map((model) => ({
+      model: model.model,
+      requests: toNumber(model.requests),
+      tokens: toNumber(model.tokens),
+    })),
+    channelStats: channelStatsRaw.map((stat) => ({
+      channelId: stat.channelId,
+      requests: toNumber(stat.requests),
+      successRate: toNumber(stat.successRate),
+      avgLatency: Math.round(toNumber(stat.avgLatency)),
+    })),
   });
 }
