@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db } from "../db";
 import { groups, groupChannels, channels } from "../db/schema";
 import { kv, CacheKeys, CacheTTL } from "../cache/kv";
@@ -7,7 +7,6 @@ import { roundRobin } from "./strategies/round-robin";
 import { random } from "./strategies/random";
 import { weighted } from "./strategies/weighted";
 import { failover } from "./strategies/failover";
-import type { Channel, Group, GroupChannel } from "../db/schema";
 import type { ChannelType } from "../llm/types";
 
 export interface ChannelWithMapping {

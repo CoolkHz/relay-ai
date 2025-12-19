@@ -36,23 +36,35 @@ export async function validateApiKey(key: string | null): Promise<AuthResult | n
     return cached;
   }
 
-  // Query database
-  const apiKey = await db.query.apiKeys.findFirst({
-    where: eq(apiKeys.keyHash, hash),
-    with: { user: true },
-  });
+  // Query database using inner join (TiDB compatible, no lateral join)
+  const rows = await db
+    .select({
+      id: apiKeys.id,
+      userId: apiKeys.userId,
+      status: apiKeys.status,
+      expiresAt: apiKeys.expiresAt,
+      userRole: users.role,
+      userStatus: users.status,
+      userQuota: users.quota,
+      userUsedQuota: users.usedQuota,
+    })
+    .from(apiKeys)
+    .innerJoin(users, eq(apiKeys.userId, users.id))
+    .where(eq(apiKeys.keyHash, hash))
+    .limit(1);
 
+  const apiKey = rows[0];
   if (!apiKey || apiKey.status !== "active") return null;
   if (apiKey.expiresAt && apiKey.expiresAt < new Date()) return null;
-  if (apiKey.user.status !== "active") return null;
+  if (apiKey.userStatus !== "active") return null;
 
   const result: AuthResult = {
     userId: apiKey.userId,
     apiKeyId: apiKey.id,
     status: apiKey.status,
-    role: apiKey.user.role,
-    quota: Number(apiKey.user.quota),
-    usedQuota: Number(apiKey.user.usedQuota),
+    role: apiKey.userRole,
+    quota: Number(apiKey.userQuota),
+    usedQuota: Number(apiKey.userUsedQuota),
   };
 
   // Cache the result
