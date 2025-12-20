@@ -15,7 +15,7 @@ type FormFieldProps = {
 
 function FormField({ label, description, required, htmlFor, className, children }: FormFieldProps) {
   return (
-    <div className={cn("grid gap-1.5", className)}>
+    <div className={cn("grid min-w-0 gap-1.5", className)}>
       {label ? (
         <Label htmlFor={htmlFor} className="flex items-center gap-1 text-sm font-medium">
           {label}

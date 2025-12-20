@@ -346,8 +346,8 @@ export default function UsersPage() {
               {editing ? "编辑用户" : "添加用户"}
             </DialogTitle>
           </DialogHeader>
-          <ScrollArea className="max-h-[70vh] pr-4">
-            <div className="grid gap-4 sm:grid-cols-2">
+          <ScrollArea className="max-h-[70vh]">
+            <div className="grid gap-4 pr-2 pb-2 sm:grid-cols-2 sm:gap-6">
               <FormField label="用户名" required htmlFor="user-username">
                 <Input
                   id="user-username"
@@ -426,8 +426,8 @@ export default function UsersPage() {
               API 密钥 - {selectedUser?.username}
             </DialogTitle>
           </DialogHeader>
-          <ScrollArea className="max-h-[70vh] pr-4">
-            <div className="space-y-4">
+          <ScrollArea className="max-h-[70vh]">
+            <div className="space-y-4 pr-2 pb-2">
               {newKey && (
                 <Card className="border-emerald-500/40 bg-emerald-500/10">
                   <CardContent className="space-y-2 p-4">

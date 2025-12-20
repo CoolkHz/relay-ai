@@ -266,8 +266,8 @@ export default function ModelsPage() {
               添加模型价格
             </DialogTitle>
           </DialogHeader>
-          <ScrollArea className="max-h-[70vh] pr-4">
-            <div className="space-y-4">
+          <ScrollArea className="max-h-[70vh]">
+            <div className="space-y-4 pr-2 pb-2">
               <FormField
                 label="模型名称"
                 description="输入 API 调用中使用的准确模型名称"
