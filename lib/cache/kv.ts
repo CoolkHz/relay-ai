@@ -1,6 +1,8 @@
-const CF_ACCOUNT_ID = process.env.CF_ACCOUNT_ID!;
-const CF_KV_NAMESPACE_ID = process.env.CF_KV_NAMESPACE_ID!;
-const CF_API_TOKEN = process.env.CF_API_TOKEN!;
+import { env } from "../env";
+
+const CF_ACCOUNT_ID = env.CF_ACCOUNT_ID;
+const CF_KV_NAMESPACE_ID = env.CF_KV_NAMESPACE_ID;
+const CF_API_TOKEN = env.CF_API_TOKEN;
 
 const KV_BASE_URL = `https://api.cloudflare.com/client/v4/accounts/${CF_ACCOUNT_ID}/storage/kv/namespaces/${CF_KV_NAMESPACE_ID}`;
 
@@ -82,6 +84,13 @@ class KVCache {
     }
   }
 
+  /**
+   * Increment a numeric value in KV.
+   * NOTE: This is NOT atomic due to Cloudflare KV API limitations.
+   * For high-concurrency scenarios like round-robin, consider using
+   * a local in-memory counter with periodic sync, or accept slight
+   * distribution imbalance which is acceptable for load balancing.
+   */
   async increment(key: string, delta = 1): Promise<number> {
     const current = (await this.get<number>(key)) ?? 0;
     const newValue = current + delta;

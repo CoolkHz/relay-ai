@@ -32,6 +32,7 @@ export interface GroupConfig {
 export interface ChannelSelection {
   channel: ChannelWithMapping;
   actualModel: string;
+  groupId: number;
 }
 
 async function getGroupConfig(groupName: string): Promise<GroupConfig | null> {
@@ -143,6 +144,7 @@ export async function selectChannel(groupName: string): Promise<ChannelSelection
   return {
     channel: selected,
     actualModel: selected.modelMapping ?? groupName,
+    groupId: group.id,
   };
 }
 

@@ -7,8 +7,13 @@ export interface HealthStatus {
   lastError?: string;
 }
 
-const ERROR_THRESHOLD = 3;
-const RECOVERY_TIME = 60000; // 60 seconds
+// Health check configuration
+export const HEALTH_CONFIG = {
+  /** Number of consecutive errors before marking channel unhealthy */
+  ERROR_THRESHOLD: 3,
+  /** Time in ms before allowing retry on unhealthy channel */
+  RECOVERY_TIME: 60000,
+} as const;
 
 export async function isChannelHealthy(channelId: number): Promise<boolean> {
   const status = await kv.get<HealthStatus>(CacheKeys.channelHealth(channelId));
@@ -16,7 +21,7 @@ export async function isChannelHealthy(channelId: number): Promise<boolean> {
 
   if (!status.healthy) {
     // Allow retry after recovery time
-    if (Date.now() - status.lastCheck > RECOVERY_TIME) {
+    if (Date.now() - status.lastCheck > HEALTH_CONFIG.RECOVERY_TIME) {
       return true;
     }
     return false;
@@ -44,7 +49,7 @@ export async function recordChannelError(channelId: number, error?: string): Pro
   current.lastError = error;
   current.lastCheck = Date.now();
 
-  if (current.consecutiveErrors >= ERROR_THRESHOLD) {
+  if (current.consecutiveErrors >= HEALTH_CONFIG.ERROR_THRESHOLD) {
     current.healthy = false;
   }
 

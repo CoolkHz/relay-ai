@@ -3,12 +3,15 @@ import { db } from "@/lib/db";
 import { groups, groupChannels, channels } from "@/lib/db/schema";
 import { requireAdmin } from "@/lib/auth/session";
 import { desc, eq } from "drizzle-orm";
+import { parseRequestBody, jsonError, jsonSuccess } from "@/lib/utils/api";
+import { groupSchema, validateForm } from "@/lib/validations";
+import { withTransaction } from "@/lib/db/transaction";
 
 export async function GET() {
   try {
     await requireAdmin();
   } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+    return jsonError("Unauthorized", 401);
   }
 
   // Fetch groups
@@ -43,44 +46,70 @@ export async function GET() {
     })),
   }));
 
-  return Response.json({ data: list });
+  return jsonSuccess({ data: list });
 }
 
 export async function POST(request: NextRequest) {
   try {
     await requireAdmin();
   } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+    return jsonError("Unauthorized", 401);
   }
 
-  const body = await request.json();
-  const { name, description, balanceStrategy, channels: channelConfigs } = body;
-
-  if (!name) {
-    return Response.json({ error: "Name is required" }, { status: 400 });
+  const parsed = await parseRequestBody(request);
+  if ("error" in parsed) {
+    return parsed.error;
   }
 
-  // Create group
-  const [result] = await db.insert(groups).values({
-    name,
-    description,
-    balanceStrategy: balanceStrategy || "round_robin",
+  const body = parsed.data as Record<string, unknown>;
+  const channelConfigs = body.channels as Array<{
+    channelId: number;
+    modelMapping?: string;
+    weight?: number;
+    priority?: number;
+  }> | undefined;
+
+  // Prepare form data for validation
+  const formData = {
+    name: body.name,
+    description: body.description || "",
+    balanceStrategy: body.balanceStrategy || "round_robin",
+    channels: channelConfigs,
+  };
+
+  const validation = validateForm(groupSchema, formData);
+  if (!validation.success) {
+    return jsonError(Object.values(validation.errors)[0]);
+  }
+
+  const { name, description, balanceStrategy } = validation.data;
+
+  // Use transaction for group + channels creation
+  const groupId = await withTransaction(async (tx) => {
+    // Create group
+    const [result] = await tx.insert(groups).values({
+      name,
+      description,
+      balanceStrategy,
+    });
+
+    const newGroupId = Number(result.insertId);
+
+    // Add channel associations
+    if (channelConfigs?.length) {
+      await tx.insert(groupChannels).values(
+        channelConfigs.map((c) => ({
+          groupId: newGroupId,
+          channelId: c.channelId,
+          modelMapping: c.modelMapping,
+          weight: c.weight || 1,
+          priority: c.priority || 0,
+        }))
+      );
+    }
+
+    return newGroupId;
   });
 
-  const groupId = result.insertId;
-
-  // Add channel associations
-  if (channelConfigs?.length) {
-    await db.insert(groupChannels).values(
-      channelConfigs.map((c: { channelId: number; modelMapping?: string; weight?: number; priority?: number }) => ({
-        groupId: Number(groupId),
-        channelId: c.channelId,
-        modelMapping: c.modelMapping,
-        weight: c.weight || 1,
-        priority: c.priority || 0,
-      }))
-    );
-  }
-
-  return Response.json({ id: groupId });
+  return jsonSuccess({ id: groupId });
 }

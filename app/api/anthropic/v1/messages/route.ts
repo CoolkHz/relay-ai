@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { channel, actualModel } = selection;
+  const { channel, actualModel, groupId } = selection;
 
   // 5. Convert to unified format
   const unified = anthropicToUnified(body);
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     await logRequest({
       userId: auth.userId,
       apiKeyId: auth.apiKeyId,
-      groupId: 0,
+      groupId,
       channelId: channel.id,
       requestModel: model,
       actualModel,
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
     await logRequest({
       userId: auth.userId,
       apiKeyId: auth.apiKeyId,
-      groupId: 0,
+      groupId,
       channelId: channel.id,
       requestModel: model,
       actualModel,

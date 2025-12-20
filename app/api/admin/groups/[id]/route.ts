@@ -4,53 +4,62 @@ import { groups, groupChannels, channels } from "@/lib/db/schema";
 import { requireAdmin } from "@/lib/auth/session";
 import { invalidateGroupCache } from "@/lib/balancer";
 import { eq, inArray } from "drizzle-orm";
+import { parseRequestBody, pickAllowedFields, jsonError, jsonSuccess } from "@/lib/utils/api";
+import { withTransaction } from "@/lib/db/transaction";
 
 type Params = { params: Promise<{ id: string }> };
+
+// Allowed fields for group update
+const ALLOWED_UPDATE_FIELDS = [
+  "name",
+  "description",
+  "balanceStrategy",
+  "status",
+] as const;
 
 export async function GET(_: NextRequest, { params }: Params) {
   try {
     await requireAdmin();
   } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+    return jsonError("Unauthorized", 401);
   }
 
   const { id } = await params;
   const groupId = parseInt(id);
-  
-  // 分步查询：先查询group
+
+  // Query group
   const groupData = await db.select().from(groups).where(eq(groups.id, groupId)).execute().then(res => res[0]);
-  
+
   if (!groupData) {
-    return Response.json({ error: "Not found" }, { status: 404 });
+    return jsonError("Not found", 404);
   }
-  
-  // 查询关联的groupChannels
+
+  // Query associated groupChannels
   const groupChannelsList = await db
     .select()
     .from(groupChannels)
     .where(eq(groupChannels.groupId, groupId))
     .execute();
-  
+
   if (groupChannelsList.length === 0) {
-    // 没有关联的渠道
-    return Response.json({
+    return jsonSuccess({
       ...groupData,
       groupChannels: [],
     });
   }
-  
-  // 查询所有相关的channels
+
+  // Query all related channels
   const channelIds = groupChannelsList.map(gc => gc.channelId);
   const channelsList = await db
     .select()
     .from(channels)
     .where(inArray(channels.id, channelIds))
     .execute();
-  
-  // 构建channel映射
+
+  // Build channel map
   const channelsMap = new Map(channelsList.map(ch => [ch.id, ch]));
-  
-  // 构建完整的group对象
+
+  // Build complete group object
   const group = {
     ...groupData,
     groupChannels: groupChannelsList.map(gc => ({
@@ -59,70 +68,93 @@ export async function GET(_: NextRequest, { params }: Params) {
     })),
   };
 
-  return Response.json(group);
+  return jsonSuccess(group);
 }
 
 export async function PUT(request: NextRequest, { params }: Params) {
   try {
     await requireAdmin();
   } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+    return jsonError("Unauthorized", 401);
   }
 
   const { id } = await params;
-  const body = await request.json();
-  const { channels: channelConfigs, ...groupData } = body;
+  const groupId = parseInt(id);
+
+  const parsed = await parseRequestBody(request);
+  if ("error" in parsed) {
+    return parsed.error;
+  }
+
+  const body = parsed.data as Record<string, unknown>;
+  const { channels: channelConfigs, ...rawGroupData } = body;
+
+  // Only allow specific fields to be updated
+  const groupData = pickAllowedFields(rawGroupData as Record<string, unknown>, ALLOWED_UPDATE_FIELDS);
 
   // Get current group name for cache invalidation
-  const current = await db.select().from(groups).where(eq(groups.id, parseInt(id))).execute().then(res => res[0]);
+  const current = await db.select().from(groups).where(eq(groups.id, groupId)).execute().then(res => res[0]);
 
-  // Update group
-  await db.update(groups).set(groupData).where(eq(groups.id, parseInt(id)));
-
-  // Update channel associations if provided
-  if (channelConfigs) {
-    await db.delete(groupChannels).where(eq(groupChannels.groupId, parseInt(id)));
-    if (channelConfigs.length) {
-      await db.insert(groupChannels).values(
-        channelConfigs.map((c: { channelId: number; modelMapping?: string; weight?: number; priority?: number }) => ({
-          groupId: parseInt(id),
-          channelId: c.channelId,
-          modelMapping: c.modelMapping,
-          weight: c.weight || 1,
-          priority: c.priority || 0,
-        }))
-      );
+  // Use transaction for update
+  await withTransaction(async (tx) => {
+    // Update group if there are fields to update
+    if (Object.keys(groupData).length > 0) {
+      await tx.update(groups).set(groupData).where(eq(groups.id, groupId));
     }
-  }
+
+    // Update channel associations if provided
+    if (channelConfigs) {
+      await tx.delete(groupChannels).where(eq(groupChannels.groupId, groupId));
+      const configs = channelConfigs as Array<{ channelId: number; modelMapping?: string; weight?: number; priority?: number }>;
+      if (configs.length) {
+        await tx.insert(groupChannels).values(
+          configs.map((c) => ({
+            groupId,
+            channelId: c.channelId,
+            modelMapping: c.modelMapping,
+            weight: c.weight || 1,
+            priority: c.priority || 0,
+          }))
+        );
+      }
+    }
+  });
 
   // Invalidate cache
   if (current) {
     await invalidateGroupCache(current.name);
   }
-  if (body.name && body.name !== current?.name) {
-    await invalidateGroupCache(body.name);
+  if (groupData.name && groupData.name !== current?.name) {
+    await invalidateGroupCache(groupData.name as string);
   }
 
-  return Response.json({ success: true });
+  return jsonSuccess({ success: true });
 }
 
 export async function DELETE(_: NextRequest, { params }: Params) {
   try {
     await requireAdmin();
   } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+    return jsonError("Unauthorized", 401);
   }
 
   const { id } = await params;
+  const groupId = parseInt(id);
 
   // Get group name for cache invalidation
-  const group = await db.select().from(groups).where(eq(groups.id, parseInt(id))).execute().then(res => res[0]);
+  const group = await db.select().from(groups).where(eq(groups.id, groupId)).execute().then(res => res[0]);
 
-  await db.delete(groups).where(eq(groups.id, parseInt(id)));
+  // Use transaction for cascade delete
+  await withTransaction(async (tx) => {
+    // Delete associated group channels first
+    await tx.delete(groupChannels).where(eq(groupChannels.groupId, groupId));
+    // Then delete the group
+    await tx.delete(groups).where(eq(groups.id, groupId));
+  });
 
   if (group) {
     await invalidateGroupCache(group.name);
   }
 
-  return Response.json({ success: true });
+  return jsonSuccess({ success: true });
 }

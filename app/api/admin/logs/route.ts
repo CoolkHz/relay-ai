@@ -3,17 +3,21 @@ import { db } from "@/lib/db";
 import { requestLogs } from "@/lib/db/schema";
 import { requireAdmin } from "@/lib/auth/session";
 import { desc, eq, and, gte, lte, sql } from "drizzle-orm";
+import { jsonError, jsonSuccess } from "@/lib/utils/api";
+
+// Maximum limit for pagination
+const MAX_LIMIT = 100;
 
 export async function GET(request: NextRequest) {
   try {
     await requireAdmin();
   } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+    return jsonError("Unauthorized", 401);
   }
 
   const { searchParams } = new URL(request.url);
-  const page = parseInt(searchParams.get("page") || "1");
-  const limit = parseInt(searchParams.get("limit") || "50");
+  const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
+  const limit = Math.min(MAX_LIMIT, Math.max(1, parseInt(searchParams.get("limit") || "50")));
   const userId = searchParams.get("userId");
   const channelId = searchParams.get("channelId");
   const status = searchParams.get("status");
@@ -50,7 +54,7 @@ export async function GET(request: NextRequest) {
     db.select({ count: sql<number>`count(*)` }).from(requestLogs).where(where),
   ]);
 
-  return Response.json({
+  return jsonSuccess({
     data: logs,
     pagination: {
       page,

@@ -1,5 +1,5 @@
 import { db } from "../db";
-import { requestLogs, users } from "../db/schema";
+import { requestLogs, users, models } from "../db/schema";
 import { eq, sql } from "drizzle-orm";
 import { kv, CacheKeys, CacheTTL } from "../cache/kv";
 
@@ -57,12 +57,12 @@ export async function checkQuota(userId: number, quota: number, usedQuota: numbe
   return usedQuota < quota;
 }
 
-export async function getModelPrice(model: string): Promise<{ input: number; output: number }> {
-  const cached = await kv.get<{ input: number; output: number }>(CacheKeys.modelPrice(model));
+export async function getModelPrice(modelName: string): Promise<{ input: number; output: number }> {
+  const cached = await kv.get<{ input: number; output: number }>(CacheKeys.modelPrice(modelName));
   if (cached) return cached;
 
   const modelData = await db.query.models.findFirst({
-    where: eq(db.query.models.findFirst.arguments, model),
+    where: eq(models.name, modelName),
   });
 
   const price = {
@@ -70,7 +70,7 @@ export async function getModelPrice(model: string): Promise<{ input: number; out
     output: modelData ? Number(modelData.outputPrice) : 0,
   };
 
-  await kv.set(CacheKeys.modelPrice(model), price, CacheTTL.modelPrice);
+  await kv.set(CacheKeys.modelPrice(modelName), price, CacheTTL.modelPrice);
   return price;
 }
 

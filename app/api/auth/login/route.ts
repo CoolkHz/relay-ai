@@ -4,13 +4,20 @@ import { users } from "@/lib/db/schema";
 import { verifyPassword } from "@/lib/utils/crypto";
 import { signToken } from "@/lib/auth/session";
 import { eq, or } from "drizzle-orm";
+import { parseRequestBody, jsonError } from "@/lib/utils/api";
 
 export async function POST(request: NextRequest) {
-  const body = await request.json();
-  const { username, password } = body;
+  const parsed = await parseRequestBody(request);
+  if ("error" in parsed) {
+    return parsed.error;
+  }
+
+  const body = parsed.data as Record<string, unknown>;
+  const username = body.username as string | undefined;
+  const password = body.password as string | undefined;
 
   if (!username || !password) {
-    return Response.json({ error: "Username and password are required" }, { status: 400 });
+    return jsonError("Username and password are required");
   }
 
   // Find user by username or email
@@ -19,16 +26,16 @@ export async function POST(request: NextRequest) {
   });
 
   if (!user) {
-    return Response.json({ error: "Invalid credentials" }, { status: 401 });
+    return jsonError("Invalid credentials", 401);
   }
 
   if (user.status !== "active") {
-    return Response.json({ error: "Account is disabled" }, { status: 403 });
+    return jsonError("Account is disabled", 403);
   }
 
   const valid = await verifyPassword(password, user.passwordHash);
   if (!valid) {
-    return Response.json({ error: "Invalid credentials" }, { status: 401 });
+    return jsonError("Invalid credentials", 401);
   }
 
   const token = signToken({
