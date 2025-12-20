@@ -52,7 +52,7 @@ const navItems: SidebarItem[] = [
   },
 ];
 
-export function Sidebar() {
+export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
@@ -68,6 +68,7 @@ export function Sidebar() {
 
   const handleSelect = (key: string) => {
     router.push(key);
+    onNavigate?.();
   };
 
   const toggleTheme = () => {

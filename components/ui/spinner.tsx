@@ -14,6 +14,8 @@ const sizeMap: Record<SpinnerSize, string> = {
 function Spinner({ size = "md", className }: { size?: SpinnerSize; className?: string }) {
   return (
     <div
+      role="status"
+      aria-label="加载中"
       className={cn(
         "inline-block animate-spin rounded-full border-2 border-muted border-t-primary",
         sizeMap[size],

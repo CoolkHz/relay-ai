@@ -3,6 +3,7 @@
 // Usage: manage model pricing with responsive table and dialog.
 import { useState } from "react";
 import useSWR from "swr";
+import { toast } from "sonner";
 import { ArrowDownUp, Cpu, DollarSign, Plus, Search, Trash2 } from "lucide-react";
 
 import { FormField } from "@/components/dashboard/form-field";
@@ -12,11 +13,13 @@ import { SectionHeader } from "@/components/dashboard/section-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { modelSchema, validateForm } from "@/lib/validations";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -29,34 +32,83 @@ interface Model {
 }
 
 export default function ModelsPage() {
+  const dialogViewportClassName = "p-1";
+  const confirm = useConfirm();
   const { data, mutate, isLoading } = useSWR("/api/admin/models", fetcher);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [deletingModelName, setDeletingModelName] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", inputPrice: "0", outputPrice: "0" });
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const openCreate = () => {
     setForm({ name: "", inputPrice: "0", outputPrice: "0" });
+    setErrors({});
     setOpen(true);
   };
 
   const handleSubmit = async () => {
-    await fetch("/api/admin/models", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: form.name,
-        inputPrice: parseFloat(form.inputPrice) || 0,
-        outputPrice: parseFloat(form.outputPrice) || 0,
-      }),
-    });
-    setOpen(false);
-    mutate();
+    // Validate form
+    const validation = validateForm(modelSchema, form);
+    if (!validation.success) {
+      setErrors(validation.errors);
+      toast.error("请检查表单填写是否正确");
+      return;
+    }
+    setErrors({});
+
+    setIsSaving(true);
+    try {
+      const res = await fetch("/api/admin/models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: form.name,
+          inputPrice: parseFloat(form.inputPrice) || 0,
+          outputPrice: parseFloat(form.outputPrice) || 0,
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        toast.error(error.error || "创建失败");
+        return;
+      }
+
+      toast.success("模型价格已添加");
+      setOpen(false);
+      mutate();
+    } catch {
+      toast.error("网络错误，请重试");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDelete = async (name: string) => {
-    if (!confirm("Delete this model price?")) return;
-    await fetch(`/api/admin/models?name=${encodeURIComponent(name)}`, { method: "DELETE" });
-    mutate();
+    const accepted = await confirm({
+      title: "删除模型",
+      description: `确定要删除模型 "${name}" 的计费配置吗？此操作不可撤销。`,
+      confirmText: "删除",
+      variant: "destructive",
+    });
+    if (!accepted) return;
+    setDeletingModelName(name);
+    try {
+      const res = await fetch(`/api/admin/models?name=${encodeURIComponent(name)}`, { method: "DELETE" });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        toast.error(error.error || "删除失败");
+        return;
+      }
+      toast.success("模型价格已删除");
+      mutate();
+    } catch {
+      toast.error("网络错误，请重试");
+    } finally {
+      setDeletingModelName(null);
+    }
   };
 
   const models = Array.isArray(data?.data) ? (data.data as Model[]) : [];
@@ -208,6 +260,7 @@ export default function ModelsPage() {
                             variant="ghost"
                             size="icon"
                             className="text-destructive hover:bg-destructive/10"
+                            isLoading={deletingModelName === model.name}
                             onClick={() => handleDelete(model.name)}
                           >
                             <Trash2 className="h-4 w-4" />
@@ -233,6 +286,7 @@ export default function ModelsPage() {
                         variant="ghost"
                         size="icon"
                         className="text-destructive hover:bg-destructive/10"
+                        isLoading={deletingModelName === model.name}
                         onClick={() => handleDelete(model.name)}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -266,11 +320,12 @@ export default function ModelsPage() {
               添加模型价格
             </DialogTitle>
           </DialogHeader>
-          <ScrollArea className="max-h-[70vh]">
+          <ScrollArea className="max-h-[70vh]" viewportClassName={dialogViewportClassName}>
             <div className="space-y-4 pr-2 pb-2">
               <FormField
                 label="模型名称"
                 description="输入 API 调用中使用的准确模型名称"
+                error={errors.name}
                 required
                 htmlFor="model-name"
               >
@@ -283,7 +338,7 @@ export default function ModelsPage() {
                 />
               </FormField>
               <div className="grid gap-4 sm:grid-cols-2">
-                <FormField label="输入价格" description="每百万输入 Token 成本" htmlFor="model-input-price">
+                <FormField label="输入价格" description="每百万输入 Token 成本" htmlFor="model-input-price" error={errors.inputPrice}>
                   <Input
                     id="model-input-price"
                     type="number"
@@ -292,7 +347,7 @@ export default function ModelsPage() {
                     onChange={(event) => setForm({ ...form, inputPrice: event.target.value })}
                   />
                 </FormField>
-                <FormField label="输出价格" description="每百万输出 Token 成本" htmlFor="model-output-price">
+                <FormField label="输出价格" description="每百万输出 Token 成本" htmlFor="model-output-price" error={errors.outputPrice}>
                   <Input
                     id="model-output-price"
                     type="number"
@@ -308,7 +363,9 @@ export default function ModelsPage() {
             <Button variant="outline" onClick={() => setOpen(false)}>
               取消
             </Button>
-            <Button onClick={handleSubmit}>保存</Button>
+            <Button onClick={handleSubmit} isLoading={isSaving} loadingText="保存中">
+              保存
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

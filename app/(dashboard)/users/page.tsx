@@ -3,6 +3,7 @@
 // Usage: users admin CRUD and API key management.
 import { useState } from "react";
 import useSWR from "swr";
+import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Key, Copy, Check, Users, Search, Mail, Shield } from "lucide-react";
 
 import { FormField } from "@/components/dashboard/form-field";
@@ -12,6 +13,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
@@ -22,6 +24,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils/cn";
+import { userSchema, userCreateSchema, validateForm } from "@/lib/validations";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -48,6 +51,8 @@ const roleOptions = [
 ];
 
 export default function UsersPage() {
+  const dialogViewportClassName = "p-1";
+  const confirm = useConfirm();
   const { data, mutate, isLoading } = useSWR("/api/admin/users", fetcher);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [isKeysModalOpen, setIsKeysModalOpen] = useState(false);
@@ -55,7 +60,12 @@ export default function UsersPage() {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [editing, setEditing] = useState<User | null>(null);
   const [search, setSearch] = useState("");
+  const [isSavingUser, setIsSavingUser] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState<number | null>(null);
+  const [isCreatingKey, setIsCreatingKey] = useState(false);
+  const [deletingKeyId, setDeletingKeyId] = useState<number | null>(null);
   const [form, setForm] = useState({ username: "", email: "", password: "", role: "user", quota: "0" });
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const [newKey, setNewKey] = useState<string | null>(null);
   const [keyName, setKeyName] = useState("");
   const [copied, setCopied] = useState(false);
@@ -68,6 +78,7 @@ export default function UsersPage() {
   const openCreate = () => {
     setEditing(null);
     setForm({ username: "", email: "", password: "", role: "user", quota: "0" });
+    setErrors({});
     setIsUserModalOpen(true);
   };
 
@@ -80,6 +91,7 @@ export default function UsersPage() {
       role: user.role,
       quota: String(user.quota),
     });
+    setErrors({});
     setIsUserModalOpen(true);
   };
 
@@ -91,50 +103,126 @@ export default function UsersPage() {
   };
 
   const handleSubmit = async () => {
+    // Validate form - use different schema for create vs edit
+    const schema = editing ? userSchema : userCreateSchema;
+    const validation = validateForm(schema, form);
+    if (!validation.success) {
+      setErrors(validation.errors);
+      toast.error("请检查表单填写是否正确");
+      return;
+    }
+    setErrors({});
+
     const body: Record<string, unknown> = { ...form, quota: parseInt(form.quota) || 0 };
     if (!body.password) delete body.password;
 
-    if (editing) {
-      await fetch(`/api/admin/users/${editing.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-    } else {
-      await fetch("/api/admin/users", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-    }
+    setIsSavingUser(true);
+    try {
+      const res = editing
+        ? await fetch(`/api/admin/users/${editing.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          })
+        : await fetch("/api/admin/users", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
 
-    setIsUserModalOpen(false);
-    mutate();
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        toast.error(error.error || "操作失败");
+        return;
+      }
+
+      toast.success(editing ? "用户已更新" : "用户已创建");
+      setIsUserModalOpen(false);
+      mutate();
+    } catch {
+      toast.error("网络错误，请重试");
+    } finally {
+      setIsSavingUser(false);
+    }
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("确定要删除此用户吗？")) return;
-    await fetch(`/api/admin/users/${id}`, { method: "DELETE" });
-    mutate();
+    const userName = users.find((user) => user.id === id)?.username || "该用户";
+    const accepted = await confirm({
+      title: "删除用户",
+      description: `确定要删除用户 "${userName}" 吗？此操作不可撤销。`,
+      confirmText: "删除",
+      variant: "destructive",
+    });
+    if (!accepted) return;
+    setDeletingUserId(id);
+    try {
+      const res = await fetch(`/api/admin/users/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        toast.error(error.error || "删除失败");
+        return;
+      }
+      toast.success("用户已删除");
+      mutate();
+    } catch {
+      toast.error("网络错误，请重试");
+    } finally {
+      setDeletingUserId(null);
+    }
   };
 
   const createKey = async () => {
     if (!selectedUser || !keyName) return;
-    const res = await fetch(`/api/admin/users/${selectedUser.id}/keys`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: keyName }),
-    });
-    const data = await res.json();
-    setNewKey(data.key);
-    setKeyName("");
-    mutateKeys();
+    setIsCreatingKey(true);
+    try {
+      const res = await fetch(`/api/admin/users/${selectedUser.id}/keys`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: keyName }),
+      });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        toast.error(error.error || "创建密钥失败");
+        return;
+      }
+      const data = await res.json();
+      setNewKey(data.key);
+      setKeyName("");
+      toast.success("API 密钥已创建");
+      mutateKeys();
+    } catch {
+      toast.error("网络错误，请重试");
+    } finally {
+      setIsCreatingKey(false);
+    }
   };
 
   const deleteKey = async (keyId: number) => {
-    if (!selectedUser || !confirm("确定要删除此 API 密钥吗？")) return;
-    await fetch(`/api/admin/users/${selectedUser.id}/keys?keyId=${keyId}`, { method: "DELETE" });
-    mutateKeys();
+    if (!selectedUser) return;
+    const keyNameValue = (keysData?.data as ApiKey[] | undefined)?.find((key) => key.id === keyId)?.name;
+    const accepted = await confirm({
+      title: "删除 API 密钥",
+      description: `确定要删除密钥 "${keyNameValue || "未命名"}" 吗？此操作不可撤销。`,
+      confirmText: "删除",
+      variant: "destructive",
+    });
+    if (!accepted) return;
+    setDeletingKeyId(keyId);
+    try {
+      const res = await fetch(`/api/admin/users/${selectedUser.id}/keys?keyId=${keyId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        toast.error(error.error || "删除密钥失败");
+        return;
+      }
+      toast.success("API 密钥已删除");
+      mutateKeys();
+    } catch {
+      toast.error("网络错误，请重试");
+    } finally {
+      setDeletingKeyId(null);
+    }
   };
 
   const copyKey = () => {
@@ -316,6 +404,7 @@ export default function UsersPage() {
                                   variant="ghost"
                                   size="icon"
                                   className="text-destructive hover:bg-destructive/10"
+                                  isLoading={deletingUserId === user.id}
                                   onClick={() => handleDelete(user.id)}
                                 >
                                   <Trash2 className="h-4 w-4" />
@@ -346,9 +435,9 @@ export default function UsersPage() {
               {editing ? "编辑用户" : "添加用户"}
             </DialogTitle>
           </DialogHeader>
-          <ScrollArea className="max-h-[70vh]">
+          <ScrollArea className="max-h-[70vh]" viewportClassName={dialogViewportClassName}>
             <div className="grid gap-4 pr-2 pb-2 sm:grid-cols-2 sm:gap-6">
-              <FormField label="用户名" required htmlFor="user-username">
+              <FormField label="用户名" required htmlFor="user-username" error={errors.username}>
                 <Input
                   id="user-username"
                   placeholder="johndoe"
@@ -357,7 +446,7 @@ export default function UsersPage() {
                   required
                 />
               </FormField>
-              <FormField label="邮箱" required htmlFor="user-email">
+              <FormField label="邮箱" required htmlFor="user-email" error={errors.email}>
                 <Input
                   id="user-email"
                   type="email"
@@ -372,6 +461,7 @@ export default function UsersPage() {
                 required={!editing}
                 htmlFor="user-password"
                 className="sm:col-span-2"
+                error={errors.password}
               >
                 <Input
                   id="user-password"
@@ -382,7 +472,7 @@ export default function UsersPage() {
                   required={!editing}
                 />
               </FormField>
-              <FormField label="角色" required htmlFor="user-role">
+              <FormField label="角色" required htmlFor="user-role" reserveDescriptionSpace error={errors.role}>
                 <Select value={form.role} onValueChange={(value) => setForm({ ...form, role: value })}>
                   <SelectTrigger id="user-role">
                     <SelectValue placeholder="选择角色" />
@@ -396,7 +486,7 @@ export default function UsersPage() {
                   </SelectContent>
                 </Select>
               </FormField>
-              <FormField label="配额" description="0 = 无限制" htmlFor="user-quota">
+              <FormField label="配额" description="0 = 无限制" htmlFor="user-quota" error={errors.quota}>
                 <Input
                   id="user-quota"
                   type="number"
@@ -410,7 +500,13 @@ export default function UsersPage() {
             <Button variant="outline" onClick={() => setIsUserModalOpen(false)}>
               取消
             </Button>
-            <Button onClick={handleSubmit}>{editing ? "更新" : "创建"}</Button>
+            <Button
+              onClick={handleSubmit}
+              isLoading={isSavingUser}
+              loadingText={editing ? "更新中" : "创建中"}
+            >
+              {editing ? "更新" : "创建"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -426,13 +522,13 @@ export default function UsersPage() {
               API 密钥 - {selectedUser?.username}
             </DialogTitle>
           </DialogHeader>
-          <ScrollArea className="max-h-[70vh]">
+          <ScrollArea className="max-h-[70vh]" viewportClassName={dialogViewportClassName}>
             <div className="space-y-4 pr-2 pb-2">
               {newKey && (
                 <Card className="border-emerald-500/40 bg-emerald-500/10">
                   <CardContent className="space-y-2 p-4">
                     <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">
-                      🎉 新 API 密钥已创建！请立即复制，之后将无法再次查看。
+                      新 API 密钥已创建！请立即复制，之后将无法再次查看。
                     </p>
                     <div className="flex items-center gap-2">
                       <code className="flex-1 rounded-lg border border-border bg-background p-3 text-sm font-mono">
@@ -462,7 +558,12 @@ export default function UsersPage() {
                     onChange={(event) => setKeyName(event.target.value)}
                     className="flex-1"
                   />
-                  <Button onClick={createKey} disabled={!keyName}>
+                  <Button
+                    onClick={createKey}
+                    isLoading={isCreatingKey}
+                    loadingText="创建中"
+                    disabled={!keyName}
+                  >
                     创建密钥
                   </Button>
                 </div>
@@ -509,6 +610,7 @@ export default function UsersPage() {
                                     variant="ghost"
                                     size="icon"
                                     className="text-destructive hover:bg-destructive/10"
+                                    isLoading={deletingKeyId === key.id}
                                     onClick={() => deleteKey(key.id)}
                                   >
                                     <Trash2 className="h-4 w-4" />

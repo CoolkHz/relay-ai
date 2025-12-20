@@ -3,6 +3,7 @@
 // Usage: manage model groups with responsive table and channel mapping dialog.
 import { useState } from "react";
 import useSWR from "swr";
+import { toast } from "sonner";
 import { Layers, Pencil, Plus, Search, Server, Trash2 } from "lucide-react";
 
 import { FormField } from "@/components/dashboard/form-field";
@@ -12,6 +13,7 @@ import { SectionHeader } from "@/components/dashboard/section-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -19,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { groupSchema, validateForm } from "@/lib/validations";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -52,21 +55,27 @@ interface Channel {
 }
 
 export default function GroupsPage() {
+  const dialogViewportClassName = "p-1";
+  const confirm = useConfirm();
   const { data, mutate, isLoading } = useSWR("/api/admin/groups", fetcher);
   const { data: channelsData } = useSWR("/api/admin/channels", fetcher);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Group | null>(null);
   const [search, setSearch] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [deletingGroupId, setDeletingGroupId] = useState<number | null>(null);
   const [form, setForm] = useState({
     name: "",
     description: "",
     balanceStrategy: "round_robin",
     channels: [] as { channelId: number; modelMapping: string; weight: number; priority: number }[],
   });
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const openCreate = () => {
     setEditing(null);
     setForm({ name: "", description: "", balanceStrategy: "round_robin", channels: [] });
+    setErrors({});
     setOpen(true);
   };
 
@@ -83,31 +92,74 @@ export default function GroupsPage() {
         priority: gc.priority,
       })),
     });
+    setErrors({});
     setOpen(true);
   };
 
   const handleSubmit = async () => {
-    if (editing) {
-      await fetch(`/api/admin/groups/${editing.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-    } else {
-      await fetch("/api/admin/groups", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
+    // Validate form
+    const validation = validateForm(groupSchema, form);
+    if (!validation.success) {
+      setErrors(validation.errors);
+      toast.error("请检查表单填写是否正确");
+      return;
     }
-    setOpen(false);
-    mutate();
+    setErrors({});
+
+    setIsSaving(true);
+    try {
+      const res = editing
+        ? await fetch(`/api/admin/groups/${editing.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(form),
+          })
+        : await fetch("/api/admin/groups", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(form),
+          });
+
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        toast.error(error.error || "操作失败");
+        return;
+      }
+
+      toast.success(editing ? "分组已更新" : "分组已创建");
+      setOpen(false);
+      mutate();
+    } catch {
+      toast.error("网络错误，请重试");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this group?")) return;
-    await fetch(`/api/admin/groups/${id}`, { method: "DELETE" });
-    mutate();
+    const groupName = groups.find((group) => group.id === id)?.name || "该分组";
+    const accepted = await confirm({
+      title: "删除分组",
+      description: `确定要删除分组 "${groupName}" 吗？此操作不可撤销。`,
+      confirmText: "删除",
+      variant: "destructive",
+    });
+    if (!accepted) return;
+    setDeletingGroupId(id);
+    try {
+      const res = await fetch(`/api/admin/groups/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        toast.error(error.error || "删除失败");
+        return;
+      }
+      toast.success("分组已删除");
+      mutate();
+    } catch {
+      toast.error("网络错误，请重试");
+    } finally {
+      setDeletingGroupId(null);
+    }
   };
 
   const addChannel = () => {
@@ -248,6 +300,7 @@ export default function GroupsPage() {
                             variant="ghost"
                             size="icon"
                             className="text-destructive hover:bg-destructive/10"
+                            isLoading={deletingGroupId === group.id}
                             onClick={() => handleDelete(group.id)}
                           >
                             <Trash2 className="h-4 w-4" />
@@ -291,6 +344,7 @@ export default function GroupsPage() {
                         variant="ghost"
                         size="icon"
                         className="text-destructive hover:bg-destructive/10"
+                        isLoading={deletingGroupId === group.id}
                         onClick={() => handleDelete(group.id)}
                       >
                         <Trash2 className="h-4 w-4" />
@@ -314,12 +368,13 @@ export default function GroupsPage() {
               {editing ? "编辑分组" : "添加分组"}
             </DialogTitle>
           </DialogHeader>
-          <ScrollArea className="max-h-[70vh]">
+          <ScrollArea className="max-h-[70vh]" viewportClassName={dialogViewportClassName}>
             <div className="space-y-6 pr-2 pb-2">
               <div className="grid gap-4 sm:grid-cols-2 sm:gap-6">
                 <FormField
                   label="名称（对外模型名）"
                   description="客户端使用的模型名称"
+                  error={errors.name}
                   required
                   htmlFor="group-name"
                 >
@@ -331,7 +386,7 @@ export default function GroupsPage() {
                     required
                   />
                 </FormField>
-                <FormField label="描述" htmlFor="group-description">
+                <FormField label="描述" htmlFor="group-description" reserveDescriptionSpace>
                   <Input
                     id="group-description"
                     placeholder="生产环境 GPT-4 池"
@@ -378,7 +433,7 @@ export default function GroupsPage() {
                     {form.channels.map((channel, index) => (
                       <Card key={`${channel.channelId}-${index}`} className="border border-border/60">
                         <CardContent className="grid gap-3 p-4 sm:grid-cols-2 sm:gap-4 xl:grid-cols-[1.2fr_1.2fr_0.7fr_0.7fr_auto]">
-                          <FormField label="渠道">
+                          <FormField label="渠道" reserveDescriptionSpace>
                             <Select
                               value={channel.channelId ? String(channel.channelId) : ""}
                               onValueChange={(value) =>
@@ -397,14 +452,14 @@ export default function GroupsPage() {
                               </SelectContent>
                             </Select>
                           </FormField>
-                          <FormField label="模型映射" description="覆盖模型名称">
+                          <FormField label="模型映射" description="覆盖模型名称" reserveDescriptionSpace>
                             <Input
                               placeholder="实际模型名"
                               value={channel.modelMapping}
                               onChange={(event) => updateChannel(index, "modelMapping", event.target.value)}
                             />
                           </FormField>
-                          <FormField label="权重">
+                          <FormField label="权重" reserveDescriptionSpace>
                             <Input
                               type="number"
                               value={String(channel.weight)}
@@ -413,7 +468,7 @@ export default function GroupsPage() {
                               }
                             />
                           </FormField>
-                          <FormField label="优先级">
+                          <FormField label="优先级" reserveDescriptionSpace>
                             <Input
                               type="number"
                               value={String(channel.priority)}
@@ -422,7 +477,7 @@ export default function GroupsPage() {
                               }
                             />
                           </FormField>
-                          <div className="flex items-end justify-end">
+                          <div className="flex items-center justify-end self-center">
                             <Button
                               variant="outline"
                               size="icon"
@@ -453,7 +508,13 @@ export default function GroupsPage() {
             <Button variant="outline" onClick={() => setOpen(false)}>
               取消
             </Button>
-            <Button onClick={handleSubmit}>{editing ? "更新" : "创建"}</Button>
+            <Button
+              onClick={handleSubmit}
+              isLoading={isSaving}
+              loadingText={editing ? "更新中" : "创建中"}
+            >
+              {editing ? "更新" : "创建"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

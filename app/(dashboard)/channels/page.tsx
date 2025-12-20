@@ -3,6 +3,7 @@
 // Usage: manage provider channels with responsive table and dialog.
 import { useState } from "react";
 import useSWR from "swr";
+import { toast } from "sonner";
 import { Globe, Pencil, Plus, Search, Server, Trash2 } from "lucide-react";
 
 import { FormField } from "@/components/dashboard/form-field";
@@ -12,12 +13,14 @@ import { SectionHeader } from "@/components/dashboard/section-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { channelSchema, channelCreateSchema, validateForm } from "@/lib/validations";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -40,10 +43,15 @@ interface Channel {
 }
 
 export default function ChannelsPage() {
+  const dialogViewportClassName = "p-1";
+  const confirm = useConfirm();
   const { data, mutate, isLoading } = useSWR("/api/admin/channels", fetcher);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Channel | null>(null);
   const [search, setSearch] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+  const [deletingChannelId, setDeletingChannelId] = useState<number | null>(null);
+  const [togglingChannelId, setTogglingChannelId] = useState<number | null>(null);
   const [form, setForm] = useState({
     name: "",
     type: "openai_chat",
@@ -53,10 +61,12 @@ export default function ChannelsPage() {
     weight: 1,
     priority: 0,
   });
+  const [errors, setErrors] = useState<Record<string, string>>({});
 
   const openCreate = () => {
     setEditing(null);
     setForm({ name: "", type: "openai_chat", baseUrl: "", apiKey: "", models: "", weight: 1, priority: 0 });
+    setErrors({});
     setOpen(true);
   };
 
@@ -71,46 +81,101 @@ export default function ChannelsPage() {
       weight: channel.weight,
       priority: channel.priority,
     });
+    setErrors({});
     setOpen(true);
   };
 
   const handleSubmit = async () => {
+    // Validate form
+    const schema = editing ? channelSchema : channelCreateSchema;
+    const validation = validateForm(schema, form);
+    if (!validation.success) {
+      setErrors(validation.errors);
+      toast.error("请检查表单填写是否正确");
+      return;
+    }
+    setErrors({});
+
     const body = {
       ...form,
       models: form.models.split(",").map((m) => m.trim()).filter(Boolean),
     };
+    setIsSaving(true);
+    try {
+      const res = editing
+        ? await fetch(`/api/admin/channels/${editing.id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          })
+        : await fetch("/api/admin/channels", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
 
-    if (editing) {
-      await fetch(`/api/admin/channels/${editing.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-    } else {
-      await fetch("/api/admin/channels", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        toast.error(error.error || "操作失败");
+        return;
+      }
+
+      toast.success(editing ? "渠道已更新" : "渠道已创建");
+      setOpen(false);
+      mutate();
+    } catch {
+      toast.error("网络错误，请重试");
+    } finally {
+      setIsSaving(false);
     }
-
-    setOpen(false);
-    mutate();
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Are you sure you want to delete this channel?")) return;
-    await fetch(`/api/admin/channels/${id}`, { method: "DELETE" });
-    mutate();
+    const channelName = channels.find((channel) => channel.id === id)?.name || "该渠道";
+    const accepted = await confirm({
+      title: "删除渠道",
+      description: `确定要删除渠道 "${channelName}" 吗？此操作不可撤销。`,
+      confirmText: "删除",
+      variant: "destructive",
+    });
+    if (!accepted) return;
+    setDeletingChannelId(id);
+    try {
+      const res = await fetch(`/api/admin/channels/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        toast.error(error.error || "删除失败");
+        return;
+      }
+      toast.success("渠道已删除");
+      mutate();
+    } catch {
+      toast.error("网络错误，请重试");
+    } finally {
+      setDeletingChannelId(null);
+    }
   };
 
   const toggleStatus = async (channel: Channel) => {
-    await fetch(`/api/admin/channels/${channel.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: channel.status === "active" ? "disabled" : "active" }),
-    });
-    mutate();
+    setTogglingChannelId(channel.id);
+    try {
+      const res = await fetch(`/api/admin/channels/${channel.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: channel.status === "active" ? "disabled" : "active" }),
+      });
+      if (!res.ok) {
+        const error = await res.json().catch(() => ({}));
+        toast.error(error.error || "状态更新失败");
+        return;
+      }
+      toast.success(channel.status === "active" ? "渠道已禁用" : "渠道已启用");
+      mutate();
+    } catch {
+      toast.error("网络错误，请重试");
+    } finally {
+      setTogglingChannelId(null);
+    }
   };
 
   const channels = Array.isArray(data?.data) ? (data.data as Channel[]) : [];
@@ -244,6 +309,8 @@ export default function ChannelsPage() {
                       variant="ghost"
                       size="sm"
                       className="gap-2 px-2 text-xs font-medium"
+                      isLoading={togglingChannelId === channel.id}
+                      loadingText="处理中"
                       onClick={() => toggleStatus(channel)}
                     >
                       <span
@@ -275,6 +342,7 @@ export default function ChannelsPage() {
                             variant="ghost"
                             size="icon"
                             className="text-destructive hover:bg-destructive/10"
+                            isLoading={deletingChannelId === channel.id}
                             onClick={() => handleDelete(channel.id)}
                           >
                             <Trash2 className="h-4 w-4" />
@@ -305,6 +373,8 @@ export default function ChannelsPage() {
                         variant="outline"
                         size="sm"
                         className="gap-2"
+                        isLoading={togglingChannelId === channel.id}
+                        loadingText="处理中"
                         onClick={() => toggleStatus(channel)}
                       >
                         <span
@@ -340,6 +410,7 @@ export default function ChannelsPage() {
                           variant="ghost"
                           size="icon"
                           className="text-destructive hover:bg-destructive/10"
+                          isLoading={deletingChannelId === channel.id}
                           onClick={() => handleDelete(channel.id)}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -364,18 +435,17 @@ export default function ChannelsPage() {
               {editing ? "编辑渠道" : "添加渠道"}
             </DialogTitle>
           </DialogHeader>
-          <ScrollArea className="max-h-[70vh]">
+          <ScrollArea className="max-h-[70vh]" viewportClassName={dialogViewportClassName}>
             <div className="grid gap-4 pr-2 pb-2 sm:grid-cols-2 sm:gap-6">
-              <FormField label="名称" required htmlFor="channel-name">
+              <FormField label="名称" required htmlFor="channel-name" error={errors.name}>
                 <Input
                   id="channel-name"
                   placeholder="我的 OpenAI 渠道"
                   value={form.name}
                   onChange={(event) => setForm({ ...form, name: event.target.value })}
-                  required
                 />
               </FormField>
-              <FormField label="类型" required htmlFor="channel-type">
+              <FormField label="类型" required htmlFor="channel-type" error={errors.type}>
                 <Select
                   value={form.type}
                   onValueChange={(value) => setForm({ ...form, type: value })}
@@ -392,13 +462,12 @@ export default function ChannelsPage() {
                   </SelectContent>
                 </Select>
               </FormField>
-              <FormField label="基础 URL" required htmlFor="channel-base-url" className="sm:col-span-2">
+              <FormField label="基础 URL" required htmlFor="channel-base-url" className="sm:col-span-2" error={errors.baseUrl}>
                 <Input
                   id="channel-base-url"
                   placeholder="https://api.openai.com/v1"
                   value={form.baseUrl}
                   onChange={(event) => setForm({ ...form, baseUrl: event.target.value })}
-                  required
                 />
               </FormField>
               <FormField
@@ -406,6 +475,7 @@ export default function ChannelsPage() {
                 required={!editing}
                 htmlFor="channel-api-key"
                 className="sm:col-span-2"
+                error={errors.apiKey}
               >
                 <Input
                   id="channel-api-key"
@@ -413,7 +483,6 @@ export default function ChannelsPage() {
                   placeholder={editing ? "留空保持不变" : "sk-..."}
                   value={form.apiKey}
                   onChange={(event) => setForm({ ...form, apiKey: event.target.value })}
-                  required={!editing}
                 />
               </FormField>
               <FormField label="模型" description="逗号分隔" htmlFor="channel-models" className="sm:col-span-2">
@@ -424,7 +493,7 @@ export default function ChannelsPage() {
                   onChange={(event) => setForm({ ...form, models: event.target.value })}
                 />
               </FormField>
-              <FormField label="权重" description="越高流量越多" htmlFor="channel-weight">
+              <FormField label="权重" description="越高流量越多" htmlFor="channel-weight" error={errors.weight}>
                 <Input
                   id="channel-weight"
                   type="number"
@@ -434,7 +503,7 @@ export default function ChannelsPage() {
                   }
                 />
               </FormField>
-              <FormField label="优先级" description="越高越优先" htmlFor="channel-priority">
+              <FormField label="优先级" description="越高越优先" htmlFor="channel-priority" error={errors.priority}>
                 <Input
                   id="channel-priority"
                   type="number"
@@ -450,7 +519,13 @@ export default function ChannelsPage() {
             <Button variant="outline" onClick={() => setOpen(false)}>
               取消
             </Button>
-            <Button onClick={handleSubmit}>{editing ? "更新" : "创建"}</Button>
+            <Button
+              onClick={handleSubmit}
+              isLoading={isSaving}
+              loadingText={editing ? "更新中" : "创建中"}
+            >
+              {editing ? "更新" : "创建"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

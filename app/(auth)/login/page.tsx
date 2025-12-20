@@ -3,11 +3,13 @@
 // Usage: login form page for admin access.
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { mutate } from "swr";
 import { Icon } from "@iconify/react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -35,6 +37,8 @@ export default function LoginPage() {
         return;
       }
 
+      // Clear SWR cache before redirect to ensure fresh auth state
+      await mutate("/api/auth/me");
       router.push("/");
       router.refresh();
     } catch {
@@ -96,7 +100,14 @@ export default function LoginPage() {
               </div>
 
               <Button type="submit" disabled={loading} className="mt-2">
-                {loading ? "登录中..." : "登录"}
+                {loading ? (
+                  <span className="flex items-center gap-2">
+                    <Spinner size="sm" />
+                    登录中
+                  </span>
+                ) : (
+                  "登录"
+                )}
               </Button>
             </form>
           </CardContent>

@@ -1,4 +1,4 @@
-// Usage: <FormField label="Name" description="Hint"><Input /></FormField>
+// Usage: <FormField label="Name" description="Hint" error="Error message"><Input /></FormField>
 import * as React from "react";
 
 import { Label } from "@/components/ui/label";
@@ -7,13 +7,25 @@ import { cn } from "@/lib/utils/cn";
 type FormFieldProps = {
   label?: string;
   description?: string;
+  error?: string;
   required?: boolean;
   htmlFor?: string;
   className?: string;
+  reserveDescriptionSpace?: boolean;
   children: React.ReactNode;
 };
 
-function FormField({ label, description, required, htmlFor, className, children }: FormFieldProps) {
+function FormField({
+  label,
+  description,
+  error,
+  required,
+  htmlFor,
+  className,
+  reserveDescriptionSpace,
+  children,
+}: FormFieldProps) {
+  const showDescription = Boolean(description) || Boolean(error) || reserveDescriptionSpace;
   return (
     <div className={cn("grid min-w-0 gap-1.5", className)}>
       {label ? (
@@ -23,7 +35,18 @@ function FormField({ label, description, required, htmlFor, className, children 
         </Label>
       ) : null}
       {children}
-      {description ? <p className="text-xs text-muted-foreground">{description}</p> : null}
+      {showDescription ? (
+        <p
+          className={cn(
+            "text-xs",
+            error ? "text-destructive" : "text-muted-foreground",
+            reserveDescriptionSpace && !error && !description && "min-h-4"
+          )}
+          aria-hidden={!description && !error}
+        >
+          {error || description}
+        </p>
+      ) : null}
     </div>
   );
 }
