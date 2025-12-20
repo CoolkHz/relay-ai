@@ -58,10 +58,10 @@ export default function DashboardPage() {
   const dailyBreakdown = Array.isArray(data?.dailyBreakdown) ? data.dailyBreakdown : [];
   const totalTokens = stats.totalInputTokens + stats.totalOutputTokens;
 
-  const chartData = dailyBreakdown.map((day: { date: string; requests?: number; successCount?: number }) => ({
+  const chartData = dailyBreakdown.map((day: { date: string; requests?: number; successCount?: number; inputTokens?: number; outputTokens?: number }) => ({
     name: day.date?.slice(5) || "",
     requests: Number(day.requests) || 0,
-    tokens: Math.round(totalTokens / Math.max(dailyBreakdown.length, 1)),
+    tokens: Number(day.inputTokens ?? 0) + Number(day.outputTokens ?? 0),
   }));
 
   return (

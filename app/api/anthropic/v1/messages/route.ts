@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
       await logRequest({
         userId: auth.userId,
         apiKeyId: auth.apiKeyId,
-        groupId: 0,
+        groupId,
         channelId: channel.id,
         requestModel: model,
         actualModel,
