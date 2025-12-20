@@ -364,8 +364,8 @@ export default function ChannelsPage() {
               {editing ? "编辑渠道" : "添加渠道"}
             </DialogTitle>
           </DialogHeader>
-          <ScrollArea className="max-h-[70vh] pr-4">
-            <div className="grid gap-4 sm:grid-cols-2">
+          <ScrollArea className="max-h-[70vh]">
+            <div className="grid gap-4 pr-2 pb-2 sm:grid-cols-2 sm:gap-6">
               <FormField label="名称" required htmlFor="channel-name">
                 <Input
                   id="channel-name"

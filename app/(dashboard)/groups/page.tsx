@@ -314,9 +314,9 @@ export default function GroupsPage() {
               {editing ? "编辑分组" : "添加分组"}
             </DialogTitle>
           </DialogHeader>
-          <ScrollArea className="max-h-[70vh] pr-4">
-            <div className="space-y-6">
-              <div className="grid gap-4 sm:grid-cols-2">
+          <ScrollArea className="max-h-[70vh]">
+            <div className="space-y-6 pr-2 pb-2">
+              <div className="grid gap-4 sm:grid-cols-2 sm:gap-6">
                 <FormField
                   label="名称（对外模型名）"
                   description="客户端使用的模型名称"
@@ -377,7 +377,7 @@ export default function GroupsPage() {
                   <div className="space-y-3">
                     {form.channels.map((channel, index) => (
                       <Card key={`${channel.channelId}-${index}`} className="border border-border/60">
-                        <CardContent className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-[1.2fr_1.2fr_0.7fr_0.7fr_auto]">
+                        <CardContent className="grid gap-3 p-4 sm:grid-cols-2 sm:gap-4 xl:grid-cols-[1.2fr_1.2fr_0.7fr_0.7fr_auto]">
                           <FormField label="渠道">
                             <Select
                               value={channel.channelId ? String(channel.channelId) : ""}
