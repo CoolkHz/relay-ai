@@ -86,9 +86,11 @@ export default function DashboardLayout({
           <span className="text-sm font-bold uppercase">Relay AI</span>
         </div>
 
-        <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8 md:px-10">
-          <div className="rounded-2xl border bg-background p-4 shadow-sm sm:p-6 md:p-8">
-            <div className="flex flex-col gap-8">{children}</div>
+        <div className="w-full px-4 py-6 sm:px-6 sm:py-8 md:px-10">
+          <div className="w-full">
+            <div className="rounded-2xl border bg-background p-4 shadow-sm [&_[data-slot=card]]:border-border/60 [&_[data-slot=card]]:shadow-none sm:p-6 md:p-8">
+              <div className="flex flex-col gap-8">{children}</div>
+            </div>
           </div>
         </div>
       </main>
