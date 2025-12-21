@@ -91,10 +91,10 @@ class KVCache {
    * a local in-memory counter with periodic sync, or accept slight
    * distribution imbalance which is acceptable for load balancing.
    */
-  async increment(key: string, delta = 1): Promise<number> {
+  async increment(key: string, delta = 1, ttl?: number): Promise<number> {
     const current = (await this.get<number>(key)) ?? 0;
     const newValue = current + delta;
-    await this.set(key, newValue);
+    await this.set(key, newValue, ttl);
     return newValue;
   }
 

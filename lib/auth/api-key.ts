@@ -7,6 +7,7 @@ import { kv, CacheKeys, CacheTTL } from "../cache/kv";
 export interface AuthResult {
   userId: number;
   apiKeyId: number;
+  keyHash: string;
   status: string;
   role: string;
   quota: number;
@@ -61,6 +62,7 @@ export async function validateApiKey(key: string | null): Promise<AuthResult | n
   const result: AuthResult = {
     userId: apiKey.userId,
     apiKeyId: apiKey.id,
+    keyHash: hash,
     status: apiKey.status,
     role: apiKey.userRole,
     quota: Number(apiKey.userQuota),

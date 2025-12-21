@@ -1,5 +1,5 @@
 import type { LLMAdapter, AdapterResponse } from "./base";
-import { getEndpointPath, withRetry } from "./base";
+import { buildRequestUrl, withRetry } from "./base";
 import type { ChannelWithMapping } from "../../balancer";
 import type { UnifiedRequest, AnthropicResponse } from "../types";
 import { unifiedToAnthropic, anthropicResponseToUnified } from "../converter";
@@ -12,7 +12,7 @@ export const anthropicAdapter: LLMAdapter = {
     request: UnifiedRequest,
     actualModel: string
   ): Promise<AdapterResponse> {
-    const url = `${channel.baseUrl}${getEndpointPath("anthropic")}`;
+    const url = buildRequestUrl(channel.baseUrl, "anthropic");
     const body = unifiedToAnthropic(request, actualModel);
 
     const doRequest = async (): Promise<AdapterResponse> => {

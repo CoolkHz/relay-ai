@@ -27,6 +27,24 @@ export function getEndpointPath(type: ChannelType): string {
   }
 }
 
+function normalizeBaseUrl(baseUrl: string): string {
+  const trimmed = baseUrl.trim().replace(/\/+$/, "");
+  try {
+    const url = new URL(trimmed);
+    const path = url.pathname.replace(/\/+$/, "");
+    if (path === "" || path === "/") {
+      url.pathname = "/v1";
+    }
+    return url.toString().replace(/\/+$/, "");
+  } catch {
+    return trimmed;
+  }
+}
+
+export function buildRequestUrl(baseUrl: string, type: ChannelType): string {
+  return `${normalizeBaseUrl(baseUrl)}${getEndpointPath(type)}`;
+}
+
 /**
  * Check if an error is retryable (network errors, 5xx, 429)
  */
@@ -73,9 +91,11 @@ export async function withRetry<T extends AdapterResponse>(
 
     // Don't wait after the last attempt
     if (attempt < maxRetries) {
-      // Exponential backoff: 1s, 2s, 4s...
-      const delay = Math.min(1000 * Math.pow(2, attempt), 8000);
-      await new Promise(resolve => setTimeout(resolve, delay));
+      // Exponential backoff with jitter: base * 2^attempt + random(0, base)
+      const base = 1000;
+      const exponential = Math.min(base * Math.pow(2, attempt), 8000);
+      const jitter = Math.random() * base;
+      await new Promise(resolve => setTimeout(resolve, exponential + jitter));
     }
   }
 

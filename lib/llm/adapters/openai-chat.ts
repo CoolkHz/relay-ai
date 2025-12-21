@@ -1,5 +1,5 @@
 import type { LLMAdapter, AdapterResponse } from "./base";
-import { getEndpointPath, withRetry } from "./base";
+import { buildRequestUrl, withRetry } from "./base";
 import type { ChannelWithMapping } from "../../balancer";
 import type { UnifiedRequest, OpenAIChatResponse } from "../types";
 import { unifiedToOpenaiChat, openaiChatResponseToUnified } from "../converter";
@@ -12,7 +12,7 @@ export const openaiChatAdapter: LLMAdapter = {
     request: UnifiedRequest,
     actualModel: string
   ): Promise<AdapterResponse> {
-    const url = `${channel.baseUrl}${getEndpointPath("openai_chat")}`;
+    const url = buildRequestUrl(channel.baseUrl, "openai_chat");
     const body = unifiedToOpenaiChat(request, actualModel);
 
     const doRequest = async (): Promise<AdapterResponse> => {

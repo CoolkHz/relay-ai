@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
 import { channels, groupChannels } from "@/lib/db/schema";
 import { requireAdmin } from "@/lib/auth/session";
+import { invalidateGroupsByChannelId } from "@/lib/balancer";
 import { eq } from "drizzle-orm";
 import { parseRequestBody, pickAllowedFields, jsonError, jsonSuccess } from "@/lib/utils/api";
 import { withTransaction } from "@/lib/db/transaction";
@@ -70,6 +71,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
   }
 
   await db.update(channels).set(updateData).where(eq(channels.id, parseInt(id)));
+  await invalidateGroupsByChannelId(parseInt(id));
   return jsonSuccess({ success: true });
 }
 
@@ -82,6 +84,8 @@ export async function DELETE(_: NextRequest, { params }: Params) {
 
   const { id } = await params;
   const channelId = parseInt(id);
+
+  await invalidateGroupsByChannelId(channelId);
 
   // Use transaction for cascade delete
   await withTransaction(async (tx) => {

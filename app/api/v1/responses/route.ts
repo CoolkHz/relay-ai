@@ -5,7 +5,8 @@ import { recordChannelSuccess, recordChannelError } from "@/lib/balancer/health"
 import { getAdapter } from "@/lib/llm/adapters";
 import { openaiResponsesToUnified, unifiedToOpenaiResponsesResponse } from "@/lib/llm/converter";
 import { createStreamTransformer, createSSEResponse } from "@/lib/llm/stream";
-import { logRequest, checkQuota, estimateTokens } from "@/lib/stats/tracker";
+import { logRequest, checkQuota, estimateTokens, getModelPrice, calculateCost, checkRateLimit } from "@/lib/stats/tracker";
+import { openaiErrorResponse } from "@/lib/utils/openai";
 import type { OpenAIResponsesRequest } from "@/lib/llm/types";
 
 export async function POST(request: NextRequest) {
@@ -17,29 +18,25 @@ export async function POST(request: NextRequest) {
   const auth = await validateApiKey(apiKey ?? null);
 
   if (!auth) {
-    return Response.json(
-      { error: { message: "Invalid API key", type: "invalid_request_error" } },
-      { status: 401 }
-    );
+    return openaiErrorResponse("Invalid API key", "invalid_request_error", 401);
   }
 
   // 2. Check quota
   if (!checkQuota(auth.userId, auth.quota, auth.usedQuota)) {
-    return Response.json(
-      { error: { message: "Quota exceeded", type: "insufficient_quota" } },
-      { status: 429 }
-    );
+    return openaiErrorResponse("Quota exceeded", "insufficient_quota", 429);
   }
 
-  // 3. Parse request
+  // 3. Check rate limit
+  if (!(await checkRateLimit(auth.userId))) {
+    return openaiErrorResponse("Rate limit exceeded", "rate_limit_error", 429);
+  }
+
+  // 4. Parse request
   let body: OpenAIResponsesRequest;
   try {
     body = await request.json();
   } catch {
-    return Response.json(
-      { error: { message: "Invalid JSON", type: "invalid_request_error" } },
-      { status: 400 }
-    );
+    return openaiErrorResponse("Invalid JSON", "invalid_request_error", 400);
   }
 
   const { model, stream } = body;
@@ -47,10 +44,7 @@ export async function POST(request: NextRequest) {
   // 4. Select channel via load balancer
   const selection = await selectChannel(model);
   if (!selection) {
-    return Response.json(
-      { error: { message: `Model '${model}' not found`, type: "invalid_request_error" } },
-      { status: 404 }
-    );
+    return openaiErrorResponse(`Model '${model}' not found`, "invalid_request_error", 404);
   }
 
   const { channel, actualModel, groupId } = selection;
@@ -69,6 +63,7 @@ export async function POST(request: NextRequest) {
     await logRequest({
       userId: auth.userId,
       apiKeyId: auth.apiKeyId,
+      apiKeyHash: auth.keyHash,
       groupId,
       channelId: channel.id,
       requestModel: model,
@@ -83,7 +78,7 @@ export async function POST(request: NextRequest) {
     });
 
     return Response.json(
-      { error: { message: result.error, type: "api_error" } },
+      { error: { message: result.error, type: "api_error", param: null, code: null } },
       { status: 502 }
     );
   }
@@ -92,16 +87,21 @@ export async function POST(request: NextRequest) {
   if (stream && result.stream) {
     const transformer = createStreamTransformer(channel.type, "openai_responses", async (ctx) => {
       await recordChannelSuccess(channel.id);
+      const inputTokens = ctx.inputTokens || estimateTokens(JSON.stringify(body.input));
+      const outputTokens = ctx.outputTokens;
+      const price = await getModelPrice(actualModel);
+      const cost = calculateCost(inputTokens, outputTokens, price.input, price.output);
       await logRequest({
         userId: auth.userId,
         apiKeyId: auth.apiKeyId,
+        apiKeyHash: auth.keyHash,
         groupId,
         channelId: channel.id,
         requestModel: model,
         actualModel,
-        inputTokens: ctx.inputTokens || estimateTokens(JSON.stringify(body.input)),
-        outputTokens: ctx.outputTokens,
-        cost: 0,
+        inputTokens,
+        outputTokens,
+        cost,
         latency: Date.now() - startTime,
         status: "success",
         ip: request.headers.get("x-forwarded-for") ?? undefined,
@@ -114,17 +114,21 @@ export async function POST(request: NextRequest) {
   // 9. Handle non-streaming response
   if (result.response) {
     await recordChannelSuccess(channel.id);
+    const { inputTokens, outputTokens } = result.response.usage;
+    const price = await getModelPrice(actualModel);
+    const cost = calculateCost(inputTokens, outputTokens, price.input, price.output);
 
     await logRequest({
       userId: auth.userId,
       apiKeyId: auth.apiKeyId,
+      apiKeyHash: auth.keyHash,
       groupId,
       channelId: channel.id,
       requestModel: model,
       actualModel,
-      inputTokens: result.response.usage.inputTokens,
-      outputTokens: result.response.usage.outputTokens,
-      cost: 0,
+      inputTokens,
+      outputTokens,
+      cost,
       latency: Date.now() - startTime,
       status: "success",
       ip: request.headers.get("x-forwarded-for") ?? undefined,
@@ -134,7 +138,7 @@ export async function POST(request: NextRequest) {
   }
 
   return Response.json(
-    { error: { message: "Unknown error", type: "api_error" } },
+    { error: { message: "Unknown error", type: "api_error", param: null, code: null } },
     { status: 500 }
   );
 }

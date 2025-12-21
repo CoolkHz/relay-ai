@@ -1,11 +1,13 @@
 import { db } from "../db";
-import { requestLogs, users, models } from "../db/schema";
+import { requestLogs, users, models, apiKeys } from "../db/schema";
 import { eq, sql } from "drizzle-orm";
 import { kv, CacheKeys, CacheTTL } from "../cache/kv";
+export { estimateTokens } from "../utils/tokens";
 
 export interface RequestLogData {
   userId: number;
   apiKeyId: number;
+  apiKeyHash?: string;
   groupId: number;
   channelId: number;
   requestModel: string;
@@ -38,7 +40,7 @@ export async function logRequest(data: RequestLogData): Promise<void> {
     ip: data.ip,
   });
 
-  // Update user quota
+  // Update user quota and invalidate cache
   if (data.status === "success") {
     const totalTokens = data.inputTokens + data.outputTokens;
     await db
@@ -46,12 +48,22 @@ export async function logRequest(data: RequestLogData): Promise<void> {
       .set({ usedQuota: sql`${users.usedQuota} + ${totalTokens}` })
       .where(eq(users.id, data.userId));
 
-    // Invalidate quota cache
-    await kv.delete(CacheKeys.userQuota(data.userId));
+    // Invalidate apiKey cache
+    let keyHash = data.apiKeyHash;
+    if (!keyHash) {
+      const apiKeyRow = await db.query.apiKeys.findFirst({
+        where: eq(apiKeys.id, data.apiKeyId),
+        columns: { keyHash: true },
+      });
+      keyHash = apiKeyRow?.keyHash;
+    }
+    if (keyHash) {
+      await kv.delete(CacheKeys.apiKey(keyHash));
+    }
   }
 }
 
-export async function checkQuota(userId: number, quota: number, usedQuota: number): Promise<boolean> {
+export function checkQuota(_userId: number, quota: number, usedQuota: number): boolean {
   // 0 means unlimited
   if (quota === 0) return true;
   return usedQuota < quota;
@@ -84,9 +96,12 @@ export function calculateCost(
   return (inputTokens / 1_000_000) * inputPrice + (outputTokens / 1_000_000) * outputPrice;
 }
 
-export function estimateTokens(text: string): number {
-  // Simple estimation: ~4 chars per token for English, ~2 for Chinese
-  const chineseChars = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
-  const otherChars = text.length - chineseChars;
-  return Math.ceil(chineseChars / 2 + otherChars / 4);
+const RATE_LIMIT_WINDOW = 60; // 60 seconds
+const RATE_LIMIT_MAX = 60; // 60 requests per minute per user
+
+export async function checkRateLimit(userId: number): Promise<boolean> {
+  const window = Math.floor(Date.now() / 1000 / RATE_LIMIT_WINDOW).toString();
+  const key = CacheKeys.rateLimit(userId, window);
+  const count = await kv.increment(key, 1, RATE_LIMIT_WINDOW);
+  return count <= RATE_LIMIT_MAX;
 }

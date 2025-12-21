@@ -3,6 +3,7 @@ import { validateApiKey } from "@/lib/auth/api-key";
 import { db } from "@/lib/db";
 import { groups } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { openaiErrorResponse } from "@/lib/utils/openai";
 
 export async function GET(request: NextRequest) {
   // Validate API Key
@@ -11,10 +12,7 @@ export async function GET(request: NextRequest) {
   const auth = await validateApiKey(apiKey ?? null);
 
   if (!auth) {
-    return Response.json(
-      { error: { message: "Invalid API key", type: "invalid_request_error" } },
-      { status: 401 }
-    );
+    return openaiErrorResponse("Invalid API key", "invalid_request_error", 401);
   }
 
   // Get all active groups (exposed as models)

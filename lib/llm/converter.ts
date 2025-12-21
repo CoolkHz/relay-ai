@@ -13,6 +13,23 @@ import type {
   ChannelType,
 } from "./types";
 
+function toOptionalNumber(value: unknown): number | undefined {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed || trimmed === "undefined" || trimmed === "[undefined]" || trimmed === "null") return undefined;
+    const parsed = Number(trimmed);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return undefined;
+}
+
+function toOpenAIResponsesIds(id: string): { responseId: string; messageId: string } {
+  if (id.startsWith("resp_")) return { responseId: id, messageId: `msg_${id.slice(5)}` };
+  if (id.startsWith("msg_")) return { responseId: `resp_${id.slice(4)}`, messageId: id };
+  return { responseId: `resp_${id}`, messageId: `msg_${id}` };
+}
+
 // ==================== To Unified ====================
 
 export function openaiChatToUnified(req: OpenAIChatRequest): UnifiedRequest {
@@ -51,9 +68,9 @@ export function openaiResponsesToUnified(req: OpenAIResponsesRequest): UnifiedRe
     model: req.model,
     messages,
     stream: req.stream,
-    maxTokens: req.max_output_tokens,
-    temperature: req.temperature,
-    topP: req.top_p,
+    maxTokens: toOptionalNumber(req.max_output_tokens as unknown),
+    temperature: toOptionalNumber(req.temperature as unknown),
+    topP: toOptionalNumber(req.top_p as unknown),
   };
 }
 
@@ -221,15 +238,17 @@ export function unifiedToOpenaiChatResponse(res: UnifiedResponse): OpenAIChatRes
 }
 
 export function unifiedToOpenaiResponsesResponse(res: UnifiedResponse): OpenAIResponsesResponse {
+  const { responseId, messageId } = toOpenAIResponsesIds(res.id);
   return {
-    id: res.id,
+    id: responseId,
     object: "response",
     created_at: Math.floor(Date.now() / 1000),
     model: res.model,
+    status: "completed",
     output: [
       {
         type: "message",
-        id: `msg_${res.id}`,
+        id: messageId,
         role: "assistant",
         content: [{ type: "output_text", text: res.content }],
       },
@@ -250,6 +269,7 @@ export function unifiedToAnthropicResponse(res: UnifiedResponse): AnthropicRespo
     model: res.model,
     content: [{ type: "text", text: res.content }],
     stop_reason: res.finishReason,
+    stop_sequence: null,
     usage: {
       input_tokens: res.usage.inputTokens,
       output_tokens: res.usage.outputTokens,

@@ -109,13 +109,16 @@ export async function selectChannel(groupName: string): Promise<ChannelSelection
   const group = await getGroupConfig(groupName);
   if (!group || group.channels.length === 0) return null;
 
-  // Filter healthy channels
-  const healthyChannels: ChannelWithMapping[] = [];
-  for (const channel of group.channels) {
-    if (await isChannelHealthy(channel.id)) {
-      healthyChannels.push(channel);
-    }
-  }
+  // Filter healthy channels (parallel health checks)
+  const healthResults = await Promise.all(
+    group.channels.map(async (channel) => ({
+      channel,
+      healthy: await isChannelHealthy(channel.id),
+    }))
+  );
+  const healthyChannels = healthResults
+    .filter((r) => r.healthy)
+    .map((r) => r.channel);
 
   if (healthyChannels.length === 0) {
     // Fallback to all channels if none are healthy
@@ -150,4 +153,15 @@ export async function selectChannel(groupName: string): Promise<ChannelSelection
 
 export async function invalidateGroupCache(groupName: string): Promise<void> {
   await kv.delete(CacheKeys.group(groupName));
+}
+
+export async function invalidateGroupsByChannelId(channelId: number): Promise<void> {
+  const rows = await db
+    .select({ name: groups.name })
+    .from(groupChannels)
+    .innerJoin(groups, eq(groupChannels.groupId, groups.id))
+    .where(eq(groupChannels.channelId, channelId))
+    .execute();
+
+  await Promise.all(rows.map((row) => kv.delete(CacheKeys.group(row.name))));
 }

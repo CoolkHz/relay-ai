@@ -90,6 +90,11 @@ export interface OpenAIChatStreamChunk {
     delta: { role?: string; content?: string };
     finish_reason: string | null;
   }[];
+  usage?: {
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+  };
 }
 
 // ==================== OpenAI Responses Format ====================
@@ -114,6 +119,7 @@ export interface OpenAIResponsesResponse {
   object: string;
   created_at: number;
   model: string;
+  status?: "in_progress" | "completed" | "failed" | "incomplete";
   output: {
     type: "message";
     id: string;
@@ -124,6 +130,24 @@ export interface OpenAIResponsesResponse {
     input_tokens: number;
     output_tokens: number;
     total_tokens: number;
+  };
+}
+
+export interface OpenAIResponsesStreamEvent {
+  type: string;
+  response?: {
+    id: string;
+    model: string;
+    usage?: {
+      input_tokens: number;
+      output_tokens: number;
+      total_tokens: number;
+    };
+  };
+  delta?: string | { text?: string };
+  item?: {
+    id: string;
+    type: string;
   };
 }
 
@@ -158,6 +182,7 @@ export interface AnthropicResponse {
   model: string;
   content: { type: "text"; text: string }[];
   stop_reason: string | null;
+  stop_sequence?: string | null;
   usage: {
     input_tokens: number;
     output_tokens: number;

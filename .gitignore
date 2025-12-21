@@ -43,3 +43,5 @@ next-env.d.ts
 .plan
 .spec-workflow
 .vscode
+.serena
+.claude/plan

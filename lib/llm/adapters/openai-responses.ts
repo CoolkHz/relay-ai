@@ -1,5 +1,5 @@
 import type { LLMAdapter, AdapterResponse } from "./base";
-import { getEndpointPath, withRetry } from "./base";
+import { buildRequestUrl, withRetry } from "./base";
 import type { ChannelWithMapping } from "../../balancer";
 import type { UnifiedRequest, OpenAIResponsesResponse } from "../types";
 import { unifiedToOpenaiResponses, openaiResponsesResponseToUnified } from "../converter";
@@ -12,7 +12,7 @@ export const openaiResponsesAdapter: LLMAdapter = {
     request: UnifiedRequest,
     actualModel: string
   ): Promise<AdapterResponse> {
-    const url = `${channel.baseUrl}${getEndpointPath("openai_responses")}`;
+    const url = buildRequestUrl(channel.baseUrl, "openai_responses");
     const body = unifiedToOpenaiResponses(request, actualModel);
 
     const doRequest = async (): Promise<AdapterResponse> => {
