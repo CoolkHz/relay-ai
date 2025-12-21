@@ -15,10 +15,9 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Pagination } from "@/components/ui/pagination";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+import { ErrorState } from "@/components/dashboard/error-state";
+import { jsonFetcher } from "@/lib/utils/fetcher";
 
 interface Log {
   id: number;
@@ -51,10 +50,20 @@ export default function LogsPage() {
   if (filters.channelId) params.set("channelId", filters.channelId);
   if (filters.status) params.set("status", filters.status);
 
-  const { data, isLoading, mutate } = useSWR(`/api/admin/logs?${params}`, fetcher);
+  const { data, isLoading, mutate, error } = useSWR<{
+    data: Log[];
+    pagination: { page: number; limit: number; total: number };
+  }>(
+    `/api/admin/logs?${params}`,
+    (url: string) =>
+      jsonFetcher(url) as Promise<{
+        data: Log[];
+        pagination: { page: number; limit: number; total: number };
+      }>
+  );
 
   const totalPages = Math.ceil((data?.pagination?.total || 0) / 50);
-  const logs = Array.isArray(data?.data) ? (data.data as Log[]) : [];
+  const logs = Array.isArray(data?.data) ? data.data : [];
 
   // Calculate stats
   const successCount = logs.filter((log: Log) => log.status === "success").length || 0;
@@ -144,16 +153,20 @@ export default function LogsPage() {
           />
         </CardHeader>
         <CardContent className="pt-0">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Spinner size="lg" />
-            </div>
+          {error ? (
+            <ErrorState
+              message={error}
+              onRetry={() => mutate()}
+              className="border-0 shadow-none"
+            />
           ) : (
             <ResponsiveTable
               data={logs}
               getRowId={(log) => log.id}
               emptyState="暂无日志"
               tableLabel="请求日志列表"
+              enableColumnVisibility
+              isLoading={isLoading}
               columns={[
                 {
                   key: "time",

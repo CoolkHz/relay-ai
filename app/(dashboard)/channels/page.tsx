@@ -18,11 +18,10 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { channelSchema, channelCreateSchema, validateForm } from "@/lib/validations";
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+import { jsonFetcher } from "@/lib/utils/fetcher";
+import { ErrorState } from "@/components/dashboard/error-state";
 
 const channelTypes = [
   { key: "openai_chat", label: "OpenAI Chat" },
@@ -45,7 +44,10 @@ interface Channel {
 export default function ChannelsPage() {
   const dialogViewportClassName = "p-1";
   const confirm = useConfirm();
-  const { data, mutate, isLoading } = useSWR("/api/admin/channels", fetcher);
+  const { data, mutate, isLoading, error } = useSWR<{ data: Channel[] }>(
+    "/api/admin/channels",
+    (url: string) => jsonFetcher(url) as Promise<{ data: Channel[] }>
+  );
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Channel | null>(null);
   const [search, setSearch] = useState("");
@@ -178,7 +180,7 @@ export default function ChannelsPage() {
     }
   };
 
-  const channels = Array.isArray(data?.data) ? (data.data as Channel[]) : [];
+  const channels = Array.isArray(data?.data) ? data.data : [];
   const filteredData = channels.filter((channel) =>
     channel.name.toLowerCase().includes(search.toLowerCase()) ||
     channel.type.toLowerCase().includes(search.toLowerCase())
@@ -236,16 +238,20 @@ export default function ChannelsPage() {
           />
         </CardHeader>
         <CardContent className="pt-0">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Spinner size="lg" />
-            </div>
+          {error ? (
+            <ErrorState
+              message={error}
+              onRetry={() => mutate()}
+              className="border-0 shadow-none"
+            />
           ) : (
             <ResponsiveTable
               data={filteredData}
               getRowId={(channel) => channel.id}
               emptyState="暂无渠道"
               tableLabel="渠道列表"
+              enableColumnVisibility
+              isLoading={isLoading}
               columns={[
                 {
                   key: "name",

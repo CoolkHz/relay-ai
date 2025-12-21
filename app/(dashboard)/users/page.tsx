@@ -6,8 +6,10 @@ import useSWR from "swr";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, Key, Copy, Check, Users, Search, Mail, Shield } from "lucide-react";
 
+import { ErrorState } from "@/components/dashboard/error-state";
 import { FormField } from "@/components/dashboard/form-field";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { ResponsiveTable } from "@/components/dashboard/responsive-table";
 import { SectionHeader } from "@/components/dashboard/section-header";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -20,13 +22,10 @@ import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Spinner } from "@/components/ui/spinner";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils/cn";
 import { userSchema, userCreateSchema, validateForm } from "@/lib/validations";
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+import { jsonFetcher } from "@/lib/utils/fetcher";
 
 interface User {
   id: number;
@@ -53,7 +52,10 @@ const roleOptions = [
 export default function UsersPage() {
   const dialogViewportClassName = "p-1";
   const confirm = useConfirm();
-  const { data, mutate, isLoading } = useSWR("/api/admin/users", fetcher);
+  const { data, mutate, isLoading, error } = useSWR<{ data: User[] }>(
+    "/api/admin/users",
+    (url: string) => jsonFetcher(url) as Promise<{ data: User[] }>
+  );
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [isKeysModalOpen, setIsKeysModalOpen] = useState(false);
 
@@ -70,9 +72,9 @@ export default function UsersPage() {
   const [keyName, setKeyName] = useState("");
   const [copied, setCopied] = useState(false);
 
-  const { data: keysData, mutate: mutateKeys } = useSWR(
+  const { data: keysData, mutate: mutateKeys, error: keysError } = useSWR<{ data: ApiKey[] }>(
     selectedUser ? `/api/admin/users/${selectedUser.id}/keys` : null,
-    fetcher
+    (url: string) => jsonFetcher(url) as Promise<{ data: ApiKey[] }>
   );
 
   const openCreate = () => {
@@ -233,7 +235,7 @@ export default function UsersPage() {
     }
   };
 
-  const users = Array.isArray(data?.data) ? (data.data as User[]) : [];
+  const users = Array.isArray(data?.data) ? data.data : [];
   const filteredData = users.filter((user) =>
     user.username.toLowerCase().includes(search.toLowerCase()) ||
     user.email.toLowerCase().includes(search.toLowerCase())
@@ -291,135 +293,241 @@ export default function UsersPage() {
           />
         </CardHeader>
         <CardContent className="pt-0">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Spinner size="lg" />
-            </div>
+          {error ? (
+            <ErrorState
+              message={error}
+              onRetry={() => mutate()}
+              className="border-0 shadow-none"
+            />
           ) : (
-            <Table aria-label="用户列表">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>用户</TableHead>
-                  <TableHead>角色</TableHead>
-                  <TableHead>配额使用</TableHead>
-                  <TableHead>状态</TableHead>
-                  <TableHead className="text-right">操作</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredData.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
-                      暂无用户
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  filteredData.map((user) => {
+            <ResponsiveTable
+              data={filteredData}
+              getRowId={(user) => user.id}
+              emptyState="暂无用户"
+              tableLabel="用户列表"
+              isLoading={isLoading}
+              enableColumnVisibility
+              columns={[
+                {
+                  key: "user",
+                  header: "用户",
+                  cell: (user) => (
+                    <div className="flex items-center gap-3">
+                      <Avatar
+                        className={cn(
+                          "h-9 w-9",
+                          user.role === "admin"
+                            ? "bg-gradient-to-br from-amber-400 to-amber-600 text-white"
+                            : "bg-gradient-to-br from-primary to-indigo-400 text-white"
+                        )}
+                      >
+                        <AvatarFallback className="bg-transparent text-xs font-semibold text-white">
+                          {user.username.charAt(0).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold">{user.username}</p>
+                        <p className="flex min-w-0 items-center gap-1 truncate text-xs text-muted-foreground">
+                          <Mail className="h-3 w-3" />
+                          <span className="truncate">{user.email}</span>
+                        </p>
+                      </div>
+                    </div>
+                  ),
+                  sortValue: (user) => user.username,
+                },
+                {
+                  key: "role",
+                  header: "角色",
+                  cell: (user) => (
+                    <Badge variant={user.role === "admin" ? "warning" : "secondary"} className="gap-1.5">
+                      {user.role === "admin" && <Shield className="h-3 w-3" />}
+                      {user.role}
+                    </Badge>
+                  ),
+                  sortValue: (user) => user.role,
+                },
+                {
+                  key: "quota",
+                  header: "配额使用",
+                  align: "right",
+                  mobileLabel: "配额",
+                  cell: (user) => {
                     const quotaPercent = user.quota > 0 ? (user.usedQuota / user.quota) * 100 : 0;
                     return (
-                      <TableRow key={user.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <Avatar
-                              className={cn(
-                                "h-9 w-9",
-                                user.role === "admin"
-                                  ? "bg-gradient-to-br from-amber-400 to-amber-600 text-white"
-                                  : "bg-gradient-to-br from-primary to-indigo-400 text-white"
-                              )}
-                            >
-                              <AvatarFallback className="bg-transparent text-xs font-semibold text-white">
-                                {user.username.charAt(0).toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <p className="text-sm font-semibold">{user.username}</p>
-                              <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                                <Mail className="h-3 w-3" />
-                                {user.email}
-                              </p>
+                      <div className="w-44">
+                        {Number(user.quota) === 0 ? (
+                          <Badge variant="success">无限制</Badge>
+                        ) : (
+                          <div>
+                            <div className="mb-1 flex justify-between text-xs">
+                              <span>{Number(user.usedQuota).toLocaleString()}</span>
+                              <span className="text-muted-foreground">
+                                / {Number(user.quota).toLocaleString()}
+                              </span>
                             </div>
+                            <Progress
+                              value={quotaPercent}
+                              className="h-2"
+                              indicatorClassName={
+                                quotaPercent > 90
+                                  ? "bg-destructive"
+                                  : quotaPercent > 70
+                                    ? "bg-amber-500"
+                                    : "bg-primary"
+                              }
+                            />
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={user.role === "admin" ? "warning" : "secondary"} className="gap-1.5">
-                            {user.role === "admin" && <Shield className="h-3 w-3" />}
-                            {user.role}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="w-40">
-                            {Number(user.quota) === 0 ? (
-                              <Badge variant="success">无限制</Badge>
-                            ) : (
-                              <div>
-                                <div className="mb-1 flex justify-between text-xs">
-                                  <span>{Number(user.usedQuota).toLocaleString()}</span>
-                                  <span className="text-muted-foreground">
-                                    / {Number(user.quota).toLocaleString()}
-                                  </span>
-                                </div>
-                                <Progress
-                                  value={quotaPercent}
-                                  className="h-2"
-                                  indicatorClassName={
-                                    quotaPercent > 90
-                                      ? "bg-destructive"
-                                      : quotaPercent > 70
-                                        ? "bg-amber-500"
-                                        : "bg-primary"
-                                  }
-                                />
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={user.status === "active" ? "success" : "destructive"} className="gap-1.5">
-                            <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                            {user.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center justify-end gap-1">
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" onClick={() => openKeys(user)}>
-                                  <Key className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>API 密钥</TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button variant="ghost" size="icon" onClick={() => openEdit(user)}>
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>编辑</TooltipContent>
-                            </Tooltip>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="text-destructive hover:bg-destructive/10"
-                                  isLoading={deletingUserId === user.id}
-                                  onClick={() => handleDelete(user.id)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </TooltipTrigger>
-                              <TooltipContent>删除</TooltipContent>
-                            </Tooltip>
-                          </div>
-                        </TableCell>
-                      </TableRow>
+                        )}
+                      </div>
                     );
-                  })
-                )}
-              </TableBody>
-            </Table>
+                  },
+                  sortValue: (user) => Number(user.usedQuota) || 0,
+                },
+                {
+                  key: "status",
+                  header: "状态",
+                  cell: (user) => (
+                    <Badge variant={user.status === "active" ? "success" : "destructive"} className="gap-1.5">
+                      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                      {user.status}
+                    </Badge>
+                  ),
+                  sortValue: (user) => user.status,
+                },
+                {
+                  key: "actions",
+                  header: "操作",
+                  align: "right",
+                  hideInColumnMenu: true,
+                  cell: (user) => (
+                    <div className="flex items-center justify-end gap-1">
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button variant="ghost" size="icon" onClick={() => openKeys(user)} aria-label="API 密钥">
+                            <Key className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>API 密钥</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button variant="ghost" size="icon" onClick={() => openEdit(user)} aria-label="编辑用户">
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>编辑</TooltipContent>
+                      </Tooltip>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-destructive hover:bg-destructive/10"
+                            isLoading={deletingUserId === user.id}
+                            onClick={() => handleDelete(user.id)}
+                            aria-label="删除用户"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>删除</TooltipContent>
+                      </Tooltip>
+                    </div>
+                  ),
+                },
+              ]}
+              renderMobileCard={(user) => {
+                const quotaPercent = user.quota > 0 ? (user.usedQuota / user.quota) * 100 : 0;
+                return (
+                  <Card className="border border-border/60">
+                    <CardContent className="space-y-3 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <Avatar
+                            className={cn(
+                              "h-9 w-9",
+                              user.role === "admin"
+                                ? "bg-gradient-to-br from-amber-400 to-amber-600 text-white"
+                                : "bg-gradient-to-br from-primary to-indigo-400 text-white"
+                            )}
+                          >
+                            <AvatarFallback className="bg-transparent text-xs font-semibold text-white">
+                              {user.username.charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold">{user.username}</p>
+                            <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+                          </div>
+                        </div>
+                        <Badge variant={user.status === "active" ? "success" : "destructive"} className="gap-1.5">
+                          <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                          {user.status}
+                        </Badge>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant={user.role === "admin" ? "warning" : "secondary"} className="gap-1.5">
+                          {user.role === "admin" && <Shield className="h-3 w-3" />}
+                          {user.role}
+                        </Badge>
+                        {Number(user.quota) === 0 ? (
+                          <Badge variant="success">无限制</Badge>
+                        ) : (
+                          <Badge variant="outline">
+                            {Number(user.usedQuota).toLocaleString()} / {Number(user.quota).toLocaleString()}
+                          </Badge>
+                        )}
+                      </div>
+
+                      {Number(user.quota) === 0 ? null : (
+                        <div>
+                          <div className="mb-1 flex justify-between text-xs">
+                            <span>{Number(user.usedQuota).toLocaleString()}</span>
+                            <span className="text-muted-foreground">
+                              / {Number(user.quota).toLocaleString()}
+                            </span>
+                          </div>
+                          <Progress
+                            value={quotaPercent}
+                            className="h-2"
+                            indicatorClassName={
+                              quotaPercent > 90
+                                ? "bg-destructive"
+                                : quotaPercent > 70
+                                  ? "bg-amber-500"
+                                  : "bg-primary"
+                            }
+                          />
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-end gap-2">
+                        <Button variant="outline" size="sm" className="gap-2" onClick={() => openKeys(user)}>
+                          <Key className="h-4 w-4" />
+                          密钥
+                        </Button>
+                        <Button variant="outline" size="sm" className="gap-2" onClick={() => openEdit(user)}>
+                          <Pencil className="h-4 w-4" />
+                          编辑
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-destructive hover:bg-destructive/10"
+                          isLoading={deletingUserId === user.id}
+                          onClick={() => handleDelete(user.id)}
+                          aria-label="删除用户"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              }}
+            />
           )}
         </CardContent>
       </Card>
@@ -466,7 +574,7 @@ export default function UsersPage() {
                 <Input
                   id="user-password"
                   type="password"
-                  placeholder="••••••••"
+                  placeholder={editing ? "留空表示不修改" : "至少 8 位"}
                   value={form.password}
                   onChange={(event) => setForm({ ...form, password: event.target.value })}
                   required={!editing}
@@ -573,58 +681,101 @@ export default function UsersPage() {
 
               <div className="space-y-3">
                 <p className="text-sm font-semibold">现有密钥</p>
-                <Table aria-label="API 密钥列表">
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>名称</TableHead>
-                      <TableHead>密钥前缀</TableHead>
-                      <TableHead>状态</TableHead>
-                      <TableHead className="text-right">操作</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {!keysData?.data || keysData.data.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">
-                          暂无 API 密钥
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      (keysData.data as ApiKey[]).map((key) => (
-                        <TableRow key={key.id}>
-                          <TableCell className="font-medium">{key.name}</TableCell>
-                          <TableCell>
-                            <code className="rounded bg-muted px-2 py-1 text-xs font-mono">{key.keyPrefix}...</code>
-                          </TableCell>
-                          <TableCell>
+                {keysError ? (
+                  <ErrorState
+                    message={keysError}
+                    onRetry={() => mutateKeys()}
+                    className="border-0 shadow-none"
+                  />
+                ) : (
+                  <ResponsiveTable
+                    data={Array.isArray(keysData?.data) ? keysData.data : []}
+                    getRowId={(key) => key.id}
+                    emptyState="暂无 API 密钥"
+                    tableLabel="API 密钥列表"
+                    isLoading={Boolean(selectedUser) && !keysData}
+                    columns={[
+                      {
+                        key: "name",
+                        header: "名称",
+                        cell: (key) => <span className="font-medium">{key.name}</span>,
+                        sortValue: (key) => key.name,
+                      },
+                      {
+                        key: "prefix",
+                        header: "密钥前缀",
+                        cell: (key) => (
+                          <code className="rounded bg-muted px-2 py-1 text-xs font-mono">{key.keyPrefix}...</code>
+                        ),
+                        sortValue: (key) => key.keyPrefix,
+                      },
+                      {
+                        key: "status",
+                        header: "状态",
+                        cell: (key) => (
+                          <Badge variant={key.status === "active" ? "success" : "destructive"} className="gap-1.5">
+                            <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                            {key.status}
+                          </Badge>
+                        ),
+                        sortValue: (key) => key.status,
+                      },
+                      {
+                        key: "actions",
+                        header: "操作",
+                        align: "right",
+                        hideInColumnMenu: true,
+                        cell: (key) => (
+                          <div className="flex justify-end">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-destructive hover:bg-destructive/10"
+                                  isLoading={deletingKeyId === key.id}
+                                  onClick={() => deleteKey(key.id)}
+                                  aria-label="删除密钥"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>删除</TooltipContent>
+                            </Tooltip>
+                          </div>
+                        ),
+                      },
+                    ]}
+                    renderMobileCard={(key) => (
+                      <Card className="border border-border/60">
+                        <CardContent className="space-y-3 p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold">{key.name}</p>
+                              <p className="mt-1 text-xs text-muted-foreground">前缀：{key.keyPrefix}...</p>
+                            </div>
                             <Badge variant={key.status === "active" ? "success" : "destructive"} className="gap-1.5">
                               <span className="h-1.5 w-1.5 rounded-full bg-current" />
                               {key.status}
                             </Badge>
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex justify-end">
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="text-destructive hover:bg-destructive/10"
-                                    isLoading={deletingKeyId === key.id}
-                                    onClick={() => deleteKey(key.id)}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent>删除</TooltipContent>
-                              </Tooltip>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
+                          </div>
+                          <div className="flex items-center justify-end">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="text-destructive hover:bg-destructive/10"
+                              isLoading={deletingKeyId === key.id}
+                              onClick={() => deleteKey(key.id)}
+                              aria-label="删除密钥"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
                     )}
-                  </TableBody>
-                </Table>
+                  />
+                )}
               </div>
             </div>
           </ScrollArea>

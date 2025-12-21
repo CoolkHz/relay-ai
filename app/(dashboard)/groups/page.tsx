@@ -19,11 +19,10 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { groupSchema, validateForm } from "@/lib/validations";
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+import { jsonFetcher } from "@/lib/utils/fetcher";
+import { ErrorState } from "@/components/dashboard/error-state";
 
 const balanceStrategies = [
   { key: "round_robin", label: "轮询" },
@@ -57,8 +56,14 @@ interface Channel {
 export default function GroupsPage() {
   const dialogViewportClassName = "p-1";
   const confirm = useConfirm();
-  const { data, mutate, isLoading } = useSWR("/api/admin/groups", fetcher);
-  const { data: channelsData } = useSWR("/api/admin/channels", fetcher);
+  const { data, mutate, isLoading, error } = useSWR<{ data: Group[] }>(
+    "/api/admin/groups",
+    (url: string) => jsonFetcher(url) as Promise<{ data: Group[] }>
+  );
+  const { data: channelsData } = useSWR<{ data: Channel[] }>(
+    "/api/admin/channels",
+    (url: string) => jsonFetcher(url) as Promise<{ data: Channel[] }>
+  );
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Group | null>(null);
   const [search, setSearch] = useState("");
@@ -182,8 +187,8 @@ export default function GroupsPage() {
     setForm({ ...form, channels });
   };
 
-  const groups = Array.isArray(data?.data) ? (data.data as Group[]) : [];
-  const channels = Array.isArray(channelsData?.data) ? (channelsData.data as Channel[]) : [];
+  const groups = Array.isArray(data?.data) ? data.data : [];
+  const channels = Array.isArray(channelsData?.data) ? channelsData.data : [];
   const filteredData = groups.filter((group) => group.name.toLowerCase().includes(search.toLowerCase()));
   const strategyLabel = (key: string) =>
     balanceStrategies.find((strategy) => strategy.key === key)?.label || key;
@@ -226,16 +231,20 @@ export default function GroupsPage() {
           />
         </CardHeader>
         <CardContent className="pt-0">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Spinner size="lg" />
-            </div>
+          {error ? (
+            <ErrorState
+              message={error}
+              onRetry={() => mutate()}
+              className="border-0 shadow-none"
+            />
           ) : (
             <ResponsiveTable
               data={filteredData}
               getRowId={(group) => group.id}
               emptyState="暂无分组"
               tableLabel="分组列表"
+              enableColumnVisibility
+              isLoading={isLoading}
               columns={[
                 {
                   key: "name",

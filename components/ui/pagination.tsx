@@ -28,7 +28,7 @@ function Pagination({ total, page, onChange, showControls = true, className }: P
   const { pages, start, end } = buildPageRange(page, total);
 
   return (
-    <nav className={cn("flex items-center gap-2", className)} aria-label="Pagination">
+    <nav className={cn("flex items-center gap-2", className)} aria-label="分页">
       {showControls && (
         <Button
           variant="outline"

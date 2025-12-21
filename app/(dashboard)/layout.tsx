@@ -19,6 +19,26 @@ export default function DashboardLayout({
   const { user, isLoading, isError } = useAuth();
   const router = useRouter();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return window.localStorage.getItem("relay-ai.sidebarCollapsed") === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleSidebarCollapsed = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem("relay-ai.sidebarCollapsed", next ? "1" : "0");
+      } catch {
+        // Ignore storage errors (e.g. blocked in some environments).
+      }
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!isLoading && (isError || !user)) {
@@ -28,7 +48,7 @@ export default function DashboardLayout({
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-dvh items-center justify-center">
         <Spinner size="lg" />
       </div>
     );
@@ -39,10 +59,10 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="flex min-h-screen bg-muted/20">
+    <div className="flex h-dvh overflow-hidden bg-muted/20">
       {/* Desktop Sidebar */}
-      <div className="hidden lg:block">
-        <Sidebar />
+      <div className="hidden shrink-0 lg:block">
+        <Sidebar collapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebarCollapsed} />
       </div>
 
       {/* Mobile Menu Sheet */}
@@ -52,7 +72,7 @@ export default function DashboardLayout({
         </SheetContent>
       </Sheet>
 
-      <main className="flex-1 overflow-auto">
+      <main className="min-w-0 flex-1 overflow-auto">
         {/* Mobile Header */}
         <div className="sticky top-0 z-40 flex h-14 items-center gap-4 border-b bg-background px-4 lg:hidden">
           <Button
@@ -66,8 +86,10 @@ export default function DashboardLayout({
           <span className="text-sm font-bold uppercase">Relay AI</span>
         </div>
 
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-6 sm:px-6 sm:py-8 md:px-10">
-          {children}
+        <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 sm:py-8 md:px-10">
+          <div className="rounded-2xl border bg-background p-4 shadow-sm sm:p-6 md:p-8">
+            <div className="flex flex-col gap-8">{children}</div>
+          </div>
         </div>
       </main>
     </div>

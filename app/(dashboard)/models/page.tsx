@@ -17,11 +17,10 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Spinner } from "@/components/ui/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { modelSchema, validateForm } from "@/lib/validations";
-
-const fetcher = (url: string) => fetch(url).then((r) => r.json());
+import { jsonFetcher } from "@/lib/utils/fetcher";
+import { ErrorState } from "@/components/dashboard/error-state";
 
 interface Model {
   id: number;
@@ -34,7 +33,10 @@ interface Model {
 export default function ModelsPage() {
   const dialogViewportClassName = "p-1";
   const confirm = useConfirm();
-  const { data, mutate, isLoading } = useSWR("/api/admin/models", fetcher);
+  const { data, mutate, isLoading, error } = useSWR<{ data: Model[] }>(
+    "/api/admin/models",
+    (url: string) => jsonFetcher(url) as Promise<{ data: Model[] }>
+  );
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -111,7 +113,7 @@ export default function ModelsPage() {
     }
   };
 
-  const models = Array.isArray(data?.data) ? (data.data as Model[]) : [];
+  const models = Array.isArray(data?.data) ? data.data : [];
   const filteredData = models.filter((model) => model.name.toLowerCase().includes(search.toLowerCase()));
 
   // Calculate totals
@@ -192,16 +194,20 @@ export default function ModelsPage() {
           />
         </CardHeader>
         <CardContent className="pt-0">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Spinner size="lg" />
-            </div>
+          {error ? (
+            <ErrorState
+              message={error}
+              onRetry={() => mutate()}
+              className="border-0 shadow-none"
+            />
           ) : (
             <ResponsiveTable
               data={filteredData}
               getRowId={(model) => model.id}
               emptyState="暂无模型配置"
               tableLabel="模型价格列表"
+              enableColumnVisibility
+              isLoading={isLoading}
               columns={[
                 {
                   key: "name",

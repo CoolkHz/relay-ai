@@ -4,6 +4,7 @@
 import React from "react";
 import { Icon } from "@iconify/react";
 import { cn } from "@/lib/utils/cn";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export type SidebarItem = {
   key: string;
@@ -48,7 +49,21 @@ const SidebarNav = React.forwardRef<HTMLDivElement, SidebarNavProps>(
       <nav ref={ref} className={cn("space-y-1", className)} {...props}>
         {items.map((item) => {
           const isSelected = selected === item.key;
-          return (
+          const icon = item.icon ? (
+            <Icon
+              className={cn(
+                "text-muted-foreground group-hover:text-foreground",
+                isSelected && "text-foreground",
+                iconClassName
+              )}
+              icon={item.icon}
+              width={20}
+            />
+          ) : (
+            (item.startContent ?? null)
+          );
+
+          const content = (
             <button
               key={item.key}
               type="button"
@@ -56,6 +71,7 @@ const SidebarNav = React.forwardRef<HTMLDivElement, SidebarNavProps>(
                 setSelected(item.key);
                 onSelectKey?.(item.key);
               }}
+              aria-label={isCompact ? item.title : undefined}
               className={cn(
                 "group flex w-full items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors",
                 isCompact && "h-11 w-11 justify-center p-0",
@@ -64,23 +80,21 @@ const SidebarNav = React.forwardRef<HTMLDivElement, SidebarNavProps>(
                   : "text-muted-foreground hover:bg-muted/70 hover:text-foreground"
               )}
             >
-              {!isCompact &&
-                (item.icon ? (
-                  <Icon
-                    className={cn(
-                      "text-muted-foreground group-hover:text-foreground",
-                      isSelected && "text-foreground",
-                      iconClassName
-                    )}
-                    icon={item.icon}
-                    width={20}
-                  />
-                ) : (
-                  (item.startContent ?? null)
-                ))}
-              {!isCompact && <span className="truncate">{item.title}</span>}
+              {icon}
+              {isCompact ? null : <span className="truncate">{item.title}</span>}
               {!isCompact && !hideEndContent && (item.endContent ?? null)}
             </button>
+          );
+
+          return (
+            isCompact ? (
+              <Tooltip key={item.key}>
+                <TooltipTrigger asChild>{content}</TooltipTrigger>
+                <TooltipContent side="right">{item.title}</TooltipContent>
+              </Tooltip>
+            ) : (
+              content
+            )
           );
         })}
       </nav>
