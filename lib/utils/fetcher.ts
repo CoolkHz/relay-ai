@@ -22,8 +22,8 @@ async function jsonRequest(url: string, init?: RequestInit): Promise<unknown> {
   return await res.text();
 }
 
-async function jsonFetcher(url: string): Promise<unknown> {
-  return jsonRequest(url);
+async function jsonFetcher<T = unknown>(url: string): Promise<T> {
+  return jsonRequest(url) as Promise<T>;
 }
 
 export { jsonFetcher, jsonRequest };

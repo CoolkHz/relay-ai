@@ -1,82 +1,113 @@
-// Usage: <Pagination total={5} page={1} onChange={setPage} />
 import * as React from "react";
+import { ChevronLeft, ChevronRight, MoreHorizontal } from "lucide-react";
 
-import { cn } from "@/lib/utils/cn";
-import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
+import { type ButtonProps, buttonVariants } from "@/components/ui/button";
 
-type PaginationProps = {
-  total: number;
-  page: number;
-  onChange: (page: number) => void;
-  showControls?: boolean;
-  className?: string;
-};
-
-function buildPageRange(current: number, total: number) {
-  const rangeSize = 5;
-  let start = Math.max(1, current - 2);
-  const end = Math.min(total, start + rangeSize - 1);
-  start = Math.max(1, end - rangeSize + 1);
-  const pages: number[] = [];
-  for (let i = start; i <= end; i += 1) pages.push(i);
-  return { pages, start, end };
-}
-
-function Pagination({ total, page, onChange, showControls = true, className }: PaginationProps) {
-  if (total <= 1) return null;
-
-  const { pages, start, end } = buildPageRange(page, total);
-
+function Pagination({ className, ...props }: React.ComponentProps<"nav">) {
   return (
-    <nav className={cn("flex items-center gap-2", className)} aria-label="分页">
-      {showControls && (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => onChange(Math.max(1, page - 1))}
-          disabled={page <= 1}
-        >
-          上一页
-        </Button>
-      )}
-      {start > 1 && (
-        <>
-          <Button variant="ghost" size="sm" onClick={() => onChange(1)}>
-            1
-          </Button>
-          {start > 2 && <span className="text-sm text-muted-foreground">...</span>}
-        </>
-      )}
-      {pages.map((p) => (
-        <Button
-          key={p}
-          variant={p === page ? "default" : "ghost"}
-          size="sm"
-          onClick={() => onChange(p)}
-        >
-          {p}
-        </Button>
-      ))}
-      {end < total && (
-        <>
-          {end < total - 1 && <span className="text-sm text-muted-foreground">...</span>}
-          <Button variant="ghost" size="sm" onClick={() => onChange(total)}>
-            {total}
-          </Button>
-        </>
-      )}
-      {showControls && (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => onChange(Math.min(total, page + 1))}
-          disabled={page >= total}
-        >
-          下一页
-        </Button>
-      )}
-    </nav>
+    <nav
+      role="navigation"
+      aria-label="分页"
+      className={cn("mx-auto flex w-full justify-center", className)}
+      {...props}
+    />
   );
 }
 
-export { Pagination };
+function PaginationContent({
+  className,
+  ...props
+}: React.ComponentProps<"ol">) {
+  return <ol className={cn("flex flex-row items-center gap-1", className)} {...props} />;
+}
+
+function PaginationItem({ className, ...props }: React.ComponentProps<"li">) {
+  return <li className={cn(className)} {...props} />;
+}
+
+type PaginationLinkProps = React.ComponentProps<"a"> & {
+  isActive?: boolean;
+} & Pick<ButtonProps, "size">;
+
+function PaginationLink({
+  className,
+  isActive,
+  size = "icon",
+  ...props
+}: PaginationLinkProps) {
+  return (
+    <a
+      aria-current={isActive ? "page" : undefined}
+      className={cn(
+        buttonVariants({
+          variant: isActive ? "outline" : "ghost",
+          size,
+        }),
+        className
+      )}
+      {...props}
+    />
+  );
+}
+
+function PaginationPrevious({
+  className,
+  ...props
+}: React.ComponentProps<typeof PaginationLink>) {
+  return (
+    <PaginationLink
+      aria-label="上一页"
+      size="default"
+      className={cn("gap-1 pl-2.5", className)}
+      {...props}
+    >
+      <ChevronLeft className="h-4 w-4" />
+      <span>上一页</span>
+    </PaginationLink>
+  );
+}
+
+function PaginationNext({
+  className,
+  ...props
+}: React.ComponentProps<typeof PaginationLink>) {
+  return (
+    <PaginationLink
+      aria-label="下一页"
+      size="default"
+      className={cn("gap-1 pr-2.5", className)}
+      {...props}
+    >
+      <span>下一页</span>
+      <ChevronRight className="h-4 w-4" />
+    </PaginationLink>
+  );
+}
+
+function PaginationEllipsis({
+  className,
+  ...props
+}: React.ComponentProps<"span">) {
+  return (
+    <span
+      aria-hidden
+      className={cn("flex h-9 w-9 items-center justify-center", className)}
+      {...props}
+    >
+      <MoreHorizontal className="h-4 w-4" />
+      <span className="sr-only">更多页</span>
+    </span>
+  );
+}
+
+export {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationPrevious,
+  PaginationNext,
+  PaginationEllipsis,
+};
+
