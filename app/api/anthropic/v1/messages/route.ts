@@ -3,6 +3,7 @@ import { anthropicToUnified, unifiedToAnthropicResponse } from "@/lib/llm/conver
 import { estimateTokens } from "@/lib/stats/tracker";
 import type { AnthropicRequest } from "@/lib/llm/types";
 import { handleGatewayRequest } from "@/lib/gateway/handle-gateway-request";
+import { extractBearerToken } from "@/lib/gateway/auth";
 
 function anthropicError(type: string, message: string, status: number): Response {
   return Response.json({ type: "error", error: { type, message } }, { status });
@@ -11,7 +12,9 @@ function anthropicError(type: string, message: string, status: number): Response
 export async function POST(request: NextRequest) {
   return handleGatewayRequest(request, "anthropic", {
     parseBody: async (req) => (await req.json()) as AnthropicRequest,
-    extractApiKey: (req) => req.headers.get("x-api-key"),
+    extractApiKey: (req) => {
+      return req.headers.get("x-api-key") ?? extractBearerToken(req.headers.get("Authorization"));
+    },
     toUnified: anthropicToUnified,
     toResponse: unifiedToAnthropicResponse,
     estimateInputTokensFallback: (body) => estimateTokens(JSON.stringify(body.messages)),
