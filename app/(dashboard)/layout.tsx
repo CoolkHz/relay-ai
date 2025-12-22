@@ -47,6 +47,7 @@ export default function DashboardLayout({
           <div className="flex-1 overflow-auto scrollbar-hide">
             {children}
           </div>
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-background to-transparent" />
         </main>
       </SidebarInset>
     </SidebarProvider>
