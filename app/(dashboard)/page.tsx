@@ -20,8 +20,6 @@ import { ChartContainer, ChartLegend, ChartTooltip } from "@/components/ui/chart
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { jsonFetcher } from "@/lib/utils/fetcher";
-import { Header } from "@/components/header";
-import { Search } from "@/components/search";
 
 type TopModelRow = { model: string; requests: number; tokens: number };
 type DailyBreakdownRow = {

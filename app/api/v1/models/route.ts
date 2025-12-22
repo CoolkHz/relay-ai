@@ -4,11 +4,11 @@ import { db } from "@/lib/db";
 import { groups } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 import { openaiErrorResponse } from "@/lib/utils/openai";
+import { extractBearerToken } from "@/lib/gateway/auth";
 
 export async function GET(request: NextRequest) {
   // Validate API Key
-  const authHeader = request.headers.get("Authorization");
-  const apiKey = authHeader?.replace("Bearer ", "");
+  const apiKey = extractBearerToken(request.headers.get("Authorization"));
   const auth = await validateApiKey(apiKey ?? null);
 
   if (!auth) {

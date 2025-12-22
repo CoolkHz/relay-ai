@@ -45,3 +45,5 @@ next-env.d.ts
 .vscode
 .serena
 .claude/plan
+.codex
+.claude

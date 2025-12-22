@@ -3,12 +3,13 @@ import { db } from "@/lib/db";
 import { requestLogs } from "@/lib/db/schema";
 import { requireAdmin } from "@/lib/auth/session";
 import { sql, gte } from "drizzle-orm";
+import { jsonError, jsonSuccess } from "@/lib/utils/api";
 
 export async function GET(request: NextRequest) {
   try {
     await requireAdmin();
   } catch {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+    return jsonError("Unauthorized", 401);
   }
 
   const { searchParams } = new URL(request.url);
@@ -84,7 +85,7 @@ export async function GET(request: NextRequest) {
     .where(gte(requestLogs.createdAt, startDate))
     .groupBy(requestLogs.channelId);
 
-  return Response.json({
+  return jsonSuccess({
     summary: {
       totalRequests: toNumber(summaryData.totalRequests),
       successRequests: toNumber(summaryData.successRequests),
