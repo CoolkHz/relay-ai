@@ -1,99 +1,54 @@
-"use client";
+"use client"
 
-// Usage: protects dashboard routes and renders sidebar layout with responsive mobile menu.
-import { useState } from "react";
-import { useAuth } from "@/lib/hooks/use-auth";
-import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { Menu } from "lucide-react";
-import { Sidebar } from "@/components/dashboard/sidebar";
-import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent } from "@/components/ui/sheet";
-import { Spinner } from "@/components/ui/spinner";
+import { useEffect } from "react"
+import { useRouter } from "next/navigation"
+
+import { useAuth } from "@/lib/hooks/use-auth"
+import { AppSidebar } from "@/components/app-sidebar"
+import { ContentHeader } from "@/components/dashboard/content-header"
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
+import { Spinner } from "@/components/ui/spinner"
 
 export default function DashboardLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: React.ReactNode
 }) {
-  const { user, isLoading, isError } = useAuth();
-  const router = useRouter();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      return window.localStorage.getItem("relay-ai.sidebarCollapsed") === "1";
-    } catch {
-      return false;
-    }
-  });
-
-  const toggleSidebarCollapsed = () => {
-    setSidebarCollapsed((prev) => {
-      const next = !prev;
-      try {
-        window.localStorage.setItem("relay-ai.sidebarCollapsed", next ? "1" : "0");
-      } catch {
-        // Ignore storage errors (e.g. blocked in some environments).
-      }
-      return next;
-    });
-  };
+  const { user, isLoading, isError } = useAuth()
+  const router = useRouter()
 
   useEffect(() => {
     if (!isLoading && (isError || !user)) {
-      router.push("/login");
+      router.push("/login")
     }
-  }, [user, isLoading, isError, router]);
+  }, [user, isLoading, isError, router])
 
   if (isLoading) {
     return (
       <div className="flex h-dvh items-center justify-center">
         <Spinner size="lg" />
       </div>
-    );
+    )
   }
 
   if (!user) {
-    return null;
+    return null
   }
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-muted/20">
-      {/* Desktop Sidebar */}
-      <div className="hidden shrink-0 lg:block">
-        <Sidebar collapsed={sidebarCollapsed} onToggleCollapsed={toggleSidebarCollapsed} />
-      </div>
-
-      {/* Mobile Menu Sheet */}
-      <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-        <SheetContent side="left" className="w-72 p-0">
-          <Sidebar onNavigate={() => setMobileMenuOpen(false)} />
-        </SheetContent>
-      </Sheet>
-
-      <main className="min-w-0 flex-1 overflow-auto">
-        {/* Mobile Header */}
-        <div className="sticky top-0 z-40 flex h-14 items-center gap-4 border-b bg-background px-4 lg:hidden">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setMobileMenuOpen(true)}
-            aria-label="打开菜单"
-          >
-            <Menu className="h-5 w-5" />
-          </Button>
-          <span className="text-sm font-bold uppercase">Relay AI</span>
-        </div>
-
-        <div className="w-full px-4 py-6 sm:px-6 sm:py-8 md:px-10">
-          <div className="w-full">
-            <div className="rounded-2xl border bg-background p-4 shadow-sm [&_[data-slot=card]]:border-border/60 [&_[data-slot=card]]:shadow-none sm:p-6 md:p-8">
-              <div className="flex flex-col gap-8">{children}</div>
-            </div>
+    <SidebarProvider>
+      <AppSidebar variant="inset" />
+      <SidebarInset className="@container/content peer-data-[variant=inset]:h-[calc(100svh-16px)]">
+        <ContentHeader />
+        <main
+          data-layout="fixed"
+          className="relative flex flex-1 flex-col overflow-hidden px-4 py-6 @7xl/content:mx-auto @7xl/content:w-full @7xl/content:max-w-7xl"
+        >
+          <div className="flex-1 overflow-auto scrollbar-hide">
+            {children}
           </div>
-        </div>
-      </main>
-    </div>
-  );
+        </main>
+      </SidebarInset>
+    </SidebarProvider>
+  )
 }

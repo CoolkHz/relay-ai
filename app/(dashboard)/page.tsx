@@ -20,6 +20,8 @@ import { ChartContainer, ChartLegend, ChartTooltip } from "@/components/ui/chart
 import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { jsonFetcher } from "@/lib/utils/fetcher";
+import { Header } from "@/components/header";
+import { Search } from "@/components/search";
 
 type TopModelRow = { model: string; requests: number; tokens: number };
 type DailyBreakdownRow = {
@@ -106,10 +108,10 @@ export default function DashboardPage() {
   }));
 
   const trendChartConfig = {
-    requests: { label: "请求量", color: "hsl(var(--chart-1))" },
-    tokens: { label: "Token", color: "hsl(var(--chart-2))" },
-    cost: { label: "费用", color: "hsl(var(--chart-3))" },
-    successRate: { label: "成功率", color: "hsl(var(--chart-4))" },
+    requests: { label: "请求量", color: "var(--chart-1)" },
+    tokens: { label: "Token", color: "var(--chart-2)" },
+    cost: { label: "费用", color: "var(--chart-3)" },
+    successRate: { label: "成功率", color: "var(--chart-4)" },
   };
 
   return (
@@ -190,16 +192,16 @@ export default function DashboardPage() {
                 {chartData.length > 0 ? (
                   <ChartContainer config={trendChartConfig} className="h-[350px]">
                     <BarChart data={chartData}>
-                      <CartesianGrid vertical={false} stroke="hsl(var(--border))" />
+                      <CartesianGrid vertical={false} stroke="var(--border)" />
                       <XAxis
                         dataKey="name"
-                        stroke="hsl(var(--muted-foreground))"
+                        stroke="var(--muted-foreground)"
                         fontSize={12}
                         tickLine={false}
                         axisLine={false}
                       />
                       <YAxis
-                        stroke="hsl(var(--muted-foreground))"
+                        stroke="var(--muted-foreground)"
                         fontSize={12}
                         tickLine={false}
                         axisLine={false}
@@ -219,16 +221,16 @@ export default function DashboardPage() {
                 {chartData.length > 0 ? (
                   <ChartContainer config={trendChartConfig} className="h-[350px]">
                     <BarChart data={chartData}>
-                      <CartesianGrid vertical={false} stroke="hsl(var(--border))" />
+                      <CartesianGrid vertical={false} stroke="var(--border)" />
                       <XAxis
                         dataKey="name"
-                        stroke="hsl(var(--muted-foreground))"
+                        stroke="var(--muted-foreground)"
                         fontSize={12}
                         tickLine={false}
                         axisLine={false}
                       />
                       <YAxis
-                        stroke="hsl(var(--muted-foreground))"
+                        stroke="var(--muted-foreground)"
                         fontSize={12}
                         tickLine={false}
                         axisLine={false}
@@ -248,16 +250,16 @@ export default function DashboardPage() {
                 {chartData.length > 0 ? (
                   <ChartContainer config={trendChartConfig} className="h-[350px]">
                     <BarChart data={chartData}>
-                      <CartesianGrid vertical={false} stroke="hsl(var(--border))" />
+                      <CartesianGrid vertical={false} stroke="var(--border)" />
                       <XAxis
                         dataKey="name"
-                        stroke="hsl(var(--muted-foreground))"
+                        stroke="var(--muted-foreground)"
                         fontSize={12}
                         tickLine={false}
                         axisLine={false}
                       />
                       <YAxis
-                        stroke="hsl(var(--muted-foreground))"
+                        stroke="var(--muted-foreground)"
                         fontSize={12}
                         tickLine={false}
                         axisLine={false}
@@ -277,16 +279,16 @@ export default function DashboardPage() {
                 {chartData.length > 0 ? (
                   <ChartContainer config={trendChartConfig} className="h-[350px]">
                     <LineChart data={chartData}>
-                      <CartesianGrid vertical={false} stroke="hsl(var(--border))" />
+                      <CartesianGrid vertical={false} stroke="var(--border)" />
                       <XAxis
                         dataKey="name"
-                        stroke="hsl(var(--muted-foreground))"
+                        stroke="var(--muted-foreground)"
                         fontSize={12}
                         tickLine={false}
                         axisLine={false}
                       />
                       <YAxis
-                        stroke="hsl(var(--muted-foreground))"
+                        stroke="var(--muted-foreground)"
                         fontSize={12}
                         tickLine={false}
                         axisLine={false}
