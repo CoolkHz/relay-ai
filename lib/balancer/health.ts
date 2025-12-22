@@ -1,4 +1,5 @@
 import { kv, CacheKeys, CacheTTL } from "../cache/kv";
+import { createAsyncTtlMemo } from "../cache/memoize";
 
 export interface HealthStatus {
   healthy: boolean;
@@ -15,8 +16,10 @@ export const HEALTH_CONFIG = {
   RECOVERY_TIME: 60000,
 } as const;
 
+const healthMemo = createAsyncTtlMemo<HealthStatus | null>(1000);
+
 export async function isChannelHealthy(channelId: number): Promise<boolean> {
-  const status = await kv.get<HealthStatus>(CacheKeys.channelHealth(channelId));
+  const status = await getChannelHealth(channelId);
   if (!status) return true;
 
   if (!status.healthy) {
@@ -36,6 +39,7 @@ export async function recordChannelSuccess(channelId: number): Promise<void> {
     consecutiveErrors: 0,
   };
   await kv.set(CacheKeys.channelHealth(channelId), status, CacheTTL.channelHealth);
+  healthMemo.delete(String(channelId));
 }
 
 export async function recordChannelError(channelId: number, error?: string): Promise<void> {
@@ -54,8 +58,9 @@ export async function recordChannelError(channelId: number, error?: string): Pro
   }
 
   await kv.set(CacheKeys.channelHealth(channelId), current, CacheTTL.channelHealth);
+  healthMemo.delete(String(channelId));
 }
 
 export async function getChannelHealth(channelId: number): Promise<HealthStatus | null> {
-  return kv.get<HealthStatus>(CacheKeys.channelHealth(channelId));
+  return healthMemo.get(String(channelId), () => kv.get<HealthStatus>(CacheKeys.channelHealth(channelId)));
 }

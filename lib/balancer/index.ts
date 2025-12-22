@@ -2,6 +2,7 @@ import { eq, and, inArray } from "drizzle-orm";
 import { db } from "../db";
 import { groups, groupChannels, channels } from "../db/schema";
 import { kv, CacheKeys, CacheTTL } from "../cache/kv";
+import { createAsyncTtlMemo } from "../cache/memoize";
 import { isChannelHealthy } from "./health";
 import { roundRobin } from "./strategies/round-robin";
 import { random } from "./strategies/random";
@@ -35,7 +36,9 @@ export interface ChannelSelection {
   groupId: number;
 }
 
-async function getGroupConfig(groupName: string): Promise<GroupConfig | null> {
+const groupMemo = createAsyncTtlMemo<GroupConfig | null>(1000);
+
+async function loadGroupConfig(groupName: string): Promise<GroupConfig | null> {
   // Check cache
   const cached = await kv.get<GroupConfig>(CacheKeys.group(groupName));
   if (cached) return cached;
@@ -105,6 +108,10 @@ async function getGroupConfig(groupName: string): Promise<GroupConfig | null> {
   return config;
 }
 
+async function getGroupConfig(groupName: string): Promise<GroupConfig | null> {
+  return groupMemo.get(groupName, () => loadGroupConfig(groupName));
+}
+
 export async function selectChannel(groupName: string): Promise<ChannelSelection | null> {
   const group = await getGroupConfig(groupName);
   if (!group || group.channels.length === 0) return null;
@@ -153,6 +160,7 @@ export async function selectChannel(groupName: string): Promise<ChannelSelection
 
 export async function invalidateGroupCache(groupName: string): Promise<void> {
   await kv.delete(CacheKeys.group(groupName));
+  groupMemo.delete(groupName);
 }
 
 export async function invalidateGroupsByChannelId(channelId: number): Promise<void> {
@@ -163,5 +171,10 @@ export async function invalidateGroupsByChannelId(channelId: number): Promise<vo
     .where(eq(groupChannels.channelId, channelId))
     .execute();
 
-  await Promise.all(rows.map((row) => kv.delete(CacheKeys.group(row.name))));
+  await Promise.all(
+    rows.map((row) => {
+      groupMemo.delete(row.name);
+      return kv.delete(CacheKeys.group(row.name));
+    })
+  );
 }
