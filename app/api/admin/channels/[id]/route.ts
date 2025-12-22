@@ -5,9 +5,21 @@ import { requireAdmin } from "@/lib/auth/session";
 import { invalidateGroupsByChannelId } from "@/lib/balancer";
 import { eq } from "drizzle-orm";
 import { parseRequestBody, pickAllowedFields, jsonError, jsonSuccess } from "@/lib/utils/api";
+import { channelUpdateSchema, validateForm } from "@/lib/validations";
 import { withTransaction } from "@/lib/db/transaction";
 
 type Params = { params: Promise<{ id: string }> };
+
+function normalizeModels(models: string | string[] | undefined): string[] {
+  if (!models) return [];
+  if (Array.isArray(models)) {
+    return models.map((m) => String(m).trim()).filter(Boolean);
+  }
+  return models
+    .split(",")
+    .map((m: string) => m.trim())
+    .filter(Boolean);
+}
 
 // Allowed fields for channel update
 const ALLOWED_UPDATE_FIELDS = [
@@ -62,15 +74,34 @@ export async function PUT(request: NextRequest, { params }: Params) {
   if (body.apiKey === "***") {
     delete body.apiKey;
   }
+  // Treat empty apiKey as "no change"
+  if (typeof body.apiKey === "string" && body.apiKey.trim() === "") {
+    delete body.apiKey;
+  }
 
   // Only allow specific fields to be updated
   const updateData = pickAllowedFields(body, ALLOWED_UPDATE_FIELDS);
+  for (const [key, value] of Object.entries(updateData)) {
+    if (value === undefined) {
+      delete updateData[key as keyof typeof updateData];
+    }
+  }
 
   if (Object.keys(updateData).length === 0) {
     return jsonError("No valid fields to update");
   }
 
-  await db.update(channels).set(updateData).where(eq(channels.id, parseInt(id)));
+  const validation = validateForm(channelUpdateSchema, updateData);
+  if (!validation.success) {
+    return jsonError(Object.values(validation.errors)[0]);
+  }
+
+  const validated = { ...validation.data } as Partial<typeof channels.$inferInsert>;
+  if (validation.data.models !== undefined) {
+    validated.models = normalizeModels(validation.data.models);
+  }
+
+  await db.update(channels).set(validated).where(eq(channels.id, parseInt(id)));
   await invalidateGroupsByChannelId(parseInt(id));
   return jsonSuccess({ success: true });
 }

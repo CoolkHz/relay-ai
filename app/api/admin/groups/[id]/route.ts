@@ -62,10 +62,13 @@ export async function GET(_: NextRequest, { params }: Params) {
   // Build complete group object
   const group = {
     ...groupData,
-    groupChannels: groupChannelsList.map(gc => ({
-      ...gc,
-      channel: channelsMap.get(gc.channelId) || null,
-    })),
+    groupChannels: groupChannelsList.map((gc) => {
+      const channel = channelsMap.get(gc.channelId);
+      return {
+        ...gc,
+        channel: channel ? { ...channel, apiKey: "***" } : null,
+      };
+    }),
   };
 
   return jsonSuccess(group);

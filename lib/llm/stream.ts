@@ -3,7 +3,7 @@ import { estimateTokens } from "../utils/tokens";
 
 export type TargetFormat = "openai_chat" | "openai_responses" | "anthropic";
 
-interface StreamContext {
+export interface StreamContext {
   id: string;
   model: string;
   inputTokens: number;
@@ -39,7 +39,7 @@ export function createStreamTransformer(
   sourceType: ChannelType,
   targetFormat: TargetFormat,
   onComplete?: (ctx: StreamContext) => void
-): TransformStream<Uint8Array, Uint8Array> {
+): { transformer: TransformStream<Uint8Array, Uint8Array>; ctx: StreamContext } {
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -245,7 +245,7 @@ export function createStreamTransformer(
     logStreamComplete(targetFormat, ctx);
   };
 
-  return new TransformStream({
+  const transformer = new TransformStream({
     transform(chunk, controller) {
       buffer += decoder.decode(chunk, { stream: true });
       const lines = buffer.split("\n");
@@ -370,6 +370,8 @@ export function createStreamTransformer(
       controller.terminate();
     },
   });
+
+  return { transformer, ctx };
 }
 
 function convertStreamChunk(
@@ -388,6 +390,7 @@ function convertStreamChunk(
     }
     if (c.type === "content_block_delta" && c.delta?.text) {
       ctx.text += c.delta.text;
+      ctx.outputTokens += estimateTokens(c.delta.text);
       return c;
     }
     if (c.type === "message_delta") {
@@ -447,6 +450,8 @@ function convertStreamChunk(
     }
     if (c.type === "content_block_delta" && c.delta?.text) {
       delta = c.delta.text;
+      ctx.text += delta;
+      ctx.outputTokens += estimateTokens(delta);
     } else if (c.type === "message_delta") {
       finishReason = c.delta?.stop_reason ?? null;
       ctx.outputTokens = c.usage?.output_tokens ?? 0;

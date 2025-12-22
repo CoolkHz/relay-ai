@@ -1,27 +1,134 @@
 // Usage: Zod validation schemas for form validation.
 import { z } from "zod";
 
+function isIpv4(hostname: string): boolean {
+  const parts = hostname.split(".");
+  if (parts.length !== 4) return false;
+  return parts.every((part) => {
+    if (!/^\d+$/.test(part)) return false;
+    const n = Number(part);
+    return n >= 0 && n <= 255;
+  });
+}
+
+function isPrivateIpv4(hostname: string): boolean {
+  if (!isIpv4(hostname)) return false;
+  const [a, b] = hostname.split(".").map((n) => Number(n));
+
+  if (a === 10) return true;
+  if (a === 127) return true;
+  if (a === 0) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 100 && b >= 64 && b <= 127) return true;
+
+  return false;
+}
+
+function normalizeIpv6(hostname: string): string {
+  return hostname.replace(/^\[|\]$/g, "").toLowerCase();
+}
+
+function isPrivateIpv6(hostname: string): boolean {
+  const h = normalizeIpv6(hostname);
+  if (!h.includes(":")) return false;
+
+  if (h === "::1" || h === "0:0:0:0:0:0:0:1") return true;
+  if (h.startsWith("fe80:")) return true; // link-local
+  if (h.startsWith("fc") || h.startsWith("fd")) return true; // unique local
+  if (h === "::" || h === "0:0:0:0:0:0:0:0") return true;
+
+  return false;
+}
+
+function isForbiddenBaseUrlHost(hostname: string): boolean {
+  const h = normalizeIpv6(hostname);
+  if (!h) return true;
+  if (h === "localhost" || h.endsWith(".localhost")) return true;
+  if (h === "0.0.0.0") return true;
+  if (isPrivateIpv4(h)) return true;
+  if (isPrivateIpv6(h)) return true;
+  return false;
+}
+
+const baseUrlSchema = z
+  .string()
+  .trim()
+  .min(1, "基础 URL 不能为空")
+  .url("请输入有效的 URL 地址")
+  .superRefine((value, ctx) => {
+    let url: URL;
+    try {
+      url = new URL(value);
+    } catch {
+      return;
+    }
+
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "基础 URL 仅支持 http/https 协议",
+      });
+    }
+
+    if (url.username || url.password) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "基础 URL 不允许包含用户名或密码",
+      });
+    }
+
+    if (process.env.NODE_ENV === "production" && isForbiddenBaseUrlHost(url.hostname)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "生产环境不允许使用本地或私有地址作为基础 URL",
+      });
+    }
+  });
+
+const channelTypeSchema = z.enum(["openai_chat", "openai_responses", "anthropic"], {
+  error: "请选择渠道类型",
+});
+
+const channelStatusSchema = z.enum(["active", "disabled"], {
+  error: "请选择状态",
+});
+
+const channelModelsSchema = z.union([z.string(), z.array(z.string())]).optional();
+
 // Channel form validation
 export const channelSchema = z.object({
   name: z.string().min(1, "名称不能为空").max(100, "名称不能超过 100 个字符"),
-  type: z.enum(["openai_chat", "openai_responses", "anthropic"], {
-    error: "请选择渠道类型",
-  }),
-  baseUrl: z
-    .string()
-    .min(1, "基础 URL 不能为空")
-    .url("请输入有效的 URL 地址"),
+  type: channelTypeSchema,
+  baseUrl: baseUrlSchema,
   apiKey: z.string().optional(),
-  models: z.string().optional(),
-  weight: z.number().min(1, "权重至少为 1").max(100, "权重不能超过 100"),
-  priority: z.number().min(0, "优先级不能为负数").max(100, "优先级不能超过 100"),
+  models: channelModelsSchema,
+  weight: z.coerce.number().int().min(1, "权重至少为 1").max(100, "权重不能超过 100"),
+  priority: z.coerce.number().int().min(0, "优先级不能为负数").max(100, "优先级不能超过 100"),
 });
 
 export const channelCreateSchema = channelSchema.extend({
   apiKey: z.string().min(1, "API 密钥不能为空"),
+  status: channelStatusSchema.default("active"),
+  maxRetries: z.coerce.number().int().min(0, "最大重试次数不能为负数").max(10, "最大重试次数不能超过 10").default(3),
+  timeout: z.coerce.number().int().min(1000, "超时时间至少为 1000ms").max(600000, "超时时间不能超过 600000ms").default(60000),
 });
 
 export type ChannelFormData = z.infer<typeof channelSchema>;
+
+export const channelUpdateSchema = z.object({
+  name: channelSchema.shape.name.optional(),
+  type: channelTypeSchema.optional(),
+  baseUrl: baseUrlSchema.optional(),
+  apiKey: z.string().min(1, "API 密钥不能为空").optional(),
+  models: channelModelsSchema.optional(),
+  status: channelStatusSchema.optional(),
+  weight: channelSchema.shape.weight.optional(),
+  priority: channelSchema.shape.priority.optional(),
+  maxRetries: z.coerce.number().int().min(0, "最大重试次数不能为负数").max(10, "最大重试次数不能超过 10").optional(),
+  timeout: z.coerce.number().int().min(1000, "超时时间至少为 1000ms").max(600000, "超时时间不能超过 600000ms").optional(),
+});
 
 // Group form validation
 export const groupSchema = z.object({

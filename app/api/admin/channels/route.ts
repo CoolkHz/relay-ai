@@ -5,6 +5,17 @@ import { requireAdmin } from "@/lib/auth/session";
 import { parseRequestBody, jsonError, jsonSuccess } from "@/lib/utils/api";
 import { channelCreateSchema, validateForm } from "@/lib/validations";
 
+function normalizeModels(models: string | string[] | undefined): string[] {
+  if (!models) return [];
+  if (Array.isArray(models)) {
+    return models.map((m) => String(m).trim()).filter(Boolean);
+  }
+  return models
+    .split(",")
+    .map((m: string) => m.trim())
+    .filter(Boolean);
+}
+
 export async function GET() {
   try {
     await requireAdmin();
@@ -41,9 +52,12 @@ export async function POST(request: NextRequest) {
     type: body.type,
     baseUrl: body.baseUrl,
     apiKey: body.apiKey,
-    models: typeof body.models === "string" ? body.models : "",
-    weight: Number(body.weight) || 1,
-    priority: Number(body.priority) || 0,
+    models: body.models as string | string[] | undefined,
+    status: body.status,
+    maxRetries: body.maxRetries,
+    timeout: body.timeout,
+    weight: body.weight,
+    priority: body.priority,
   };
 
   const validation = validateForm(channelCreateSchema, formData);
@@ -51,12 +65,8 @@ export async function POST(request: NextRequest) {
     return jsonError(Object.values(validation.errors)[0]);
   }
 
-  const { name, type, baseUrl, apiKey, models, weight, priority } = validation.data;
-
-  // Parse models string to array
-  const modelsArray = models
-    ? models.split(",").map((m: string) => m.trim()).filter(Boolean)
-    : [];
+  const { name, type, baseUrl, apiKey, models, weight, priority, status, maxRetries, timeout } = validation.data;
+  const modelsArray = normalizeModels(models);
 
   const [result] = await db.insert(channels).values({
     name,
@@ -64,9 +74,11 @@ export async function POST(request: NextRequest) {
     baseUrl,
     apiKey,
     models: modelsArray,
+    status,
     weight,
     priority,
-    timeout: Number(body.timeout) || 60000,
+    maxRetries,
+    timeout,
   });
 
   return jsonSuccess({ id: result.insertId });

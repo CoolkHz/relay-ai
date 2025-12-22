@@ -3,7 +3,7 @@ import { validateApiKey } from "@/lib/auth/api-key";
 import { selectChannel } from "@/lib/balancer";
 import { recordChannelError, recordChannelSuccess } from "@/lib/balancer/health";
 import { getAdapter } from "@/lib/llm/adapters";
-import { createSSEResponse, createStreamTransformer, type TargetFormat } from "@/lib/llm/stream";
+import { createSSEResponse, createStreamTransformer, type StreamContext, type TargetFormat } from "@/lib/llm/stream";
 import type { UnifiedRequest, UnifiedResponse } from "@/lib/llm/types";
 import {
   calculateCost,
@@ -13,10 +13,34 @@ import {
   logRequest,
 } from "@/lib/stats/tracker";
 
-type StreamContext = {
-  inputTokens?: number;
-  outputTokens: number;
-};
+function withCancelHook(
+  stream: ReadableStream<Uint8Array>,
+  onCancel: (reason: unknown) => Promise<void>
+): ReadableStream<Uint8Array> {
+  const reader = stream.getReader();
+
+  return new ReadableStream<Uint8Array>({
+    async pull(controller) {
+      try {
+        const { done, value } = await reader.read();
+        if (done) {
+          controller.close();
+          return;
+        }
+        controller.enqueue(value);
+      } catch (error) {
+        controller.error(error);
+      }
+    },
+    async cancel(reason) {
+      try {
+        await reader.cancel(reason);
+      } finally {
+        await onCancel(reason);
+      }
+    },
+  });
+}
 
 export type GatewayErrorResponder = {
   invalidApiKey: () => Response;
@@ -100,7 +124,11 @@ export async function handleGatewayRequest<TBody extends { model: string; stream
   }
 
   if (stream && result.stream) {
-    const transformer = createStreamTransformer(channel.type, targetFormat, async (ctx: StreamContext) => {
+    let settled = false;
+    const settleOnce = async (ctx: StreamContext, errorMessage?: string) => {
+      if (settled) return;
+      settled = true;
+
       await recordChannelSuccess(channel.id);
       const inputTokens = ctx.inputTokens || handlers.estimateInputTokensFallback(body);
       const outputTokens = ctx.outputTokens;
@@ -120,11 +148,21 @@ export async function handleGatewayRequest<TBody extends { model: string; stream
         cost,
         latency: Date.now() - startTime,
         status: "success",
+        errorMessage,
         ip: requestIp,
       });
+    };
+
+    const { transformer, ctx } = createStreamTransformer(channel.type, targetFormat, async () => {
+      await settleOnce(ctx);
     });
 
-    return createSSEResponse(result.stream.pipeThrough(transformer));
+    const piped = result.stream.pipeThrough(transformer);
+    const guarded = withCancelHook(piped, async () => {
+      await settleOnce(ctx, "client_aborted");
+    });
+
+    return createSSEResponse(guarded);
   }
 
   if (result.response) {

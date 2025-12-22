@@ -42,7 +42,7 @@ export async function GET() {
     ...group,
     groupChannels: (groupChannelMap.get(group.id) || []).map((gc) => ({
       ...gc.groupChannel,
-      channel: gc.channel,
+      channel: gc.channel ? { ...gc.channel, apiKey: "***" } : null,
     })),
   }));
 
